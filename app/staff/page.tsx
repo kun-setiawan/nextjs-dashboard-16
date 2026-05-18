@@ -7,7 +7,7 @@ export default function StaffListPage() {
     <div className="min-h-screen bg-background flex">
       <SidebarNav />
       <div className="flex-1 flex flex-col">
-        <Header title="Daftar Staff" showSearch={true} />
+        <Header title="Daftar Staff" /*showSearch={true}*/ />
         <main className="flex-1 p-6">
           <StaffTable />
         </main>

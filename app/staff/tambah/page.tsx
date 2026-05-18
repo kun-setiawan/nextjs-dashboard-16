@@ -7,7 +7,7 @@ export default function AddStaffPage() {
     <div className="min-h-screen bg-background flex">
       <SidebarNav />
       <div className="flex-1 flex flex-col">
-        <Header title="Tambah Staff Baru" showSearch={false} />
+        <Header title="Tambah Staff Baru" /*showSearch={false}*/ />
         <main className="flex-1 p-6">
           <StaffForm mode="add" />
         </main>
