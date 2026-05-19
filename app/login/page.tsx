@@ -1,35 +1,18 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useActionState } from "react"
+import { authenticate } from "@/lib/action"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, EyeOff, LogIn } from "lucide-react"
+import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react"
+import { useState } from "react"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-  })
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    // Simulate login process
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Redirect to dashboard after login
-    router.push("/")
-  }
+  const [errorMessage, formAction, isPending] = useActionState(authenticate, undefined)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-primary/10 p-4">
@@ -48,17 +31,16 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username" className="text-foreground">
                 Username
               </Label>
               <Input
                 id="username"
+                name="username"
                 type="text"
                 placeholder="Masukkan username"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 className="bg-input border-border focus:border-primary"
                 required
               />
@@ -71,10 +53,9 @@ export default function LoginPage() {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Masukkan password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="bg-input border-border focus:border-primary pr-10"
                   required
                 />
@@ -82,18 +63,33 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
+            {/* Error message from server action */}
+            {errorMessage && (
+              <div
+                role="alert"
+                aria-live="polite"
+                className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
             <Button
               type="submit"
+              id="login-submit-btn"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground mt-6"
-              disabled={isLoading}
+              disabled={isPending}
+              aria-disabled={isPending}
             >
-              {isLoading ? (
+              {isPending ? (
                 <span className="flex items-center gap-2">
                   <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                   Memproses...
