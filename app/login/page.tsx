@@ -26,7 +26,7 @@ export default function LoginPage() {
           </div>
           <div>
             <CardTitle className="text-2xl font-bold text-foreground">Sistem Penilaian Kinerja</CardTitle>
-            <CardDescription className="text-muted-foreground mt-1">Staff Sekolah Muhammadiyah</CardDescription>
+            <CardDescription className="text-muted-foreground mt-1">Staff Sekolah SD AISYIYAH Unggulan Gemolong</CardDescription>
           </div>
         </CardHeader>
 
