@@ -21,8 +21,8 @@ export function SidebarNav() {
         <Link href="/" className="flex items-center gap-3">
           <div className="p-1">
             <Image
-              src="/logo-muhammadiyah.png"
-              alt="Logo Muhammadiyah"
+              src="/logo-SDAUG.png"
+              alt="Logo SDAUG"
               width={48}
               height={48}
               className="object-contain"

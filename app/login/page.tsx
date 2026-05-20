@@ -20,8 +20,8 @@ export default function LoginPage() {
         <CardHeader className="text-center space-y-4 pb-2">
           {/* Logo Muhammadiyah */}
           <div className="flex justify-center">
-            <div className="relative w-24 h-24">
-              <Image src="/logo-muhammadiyah.png" alt="Logo Muhammadiyah" fill className="object-contain" priority />
+            <div className="relative w-72 h-24">
+              <Image src="/logo-SDAUG.png" alt="Logo Muhammadiyah" fill className="object-contain" priority />
             </div>
           </div>
           <div>
