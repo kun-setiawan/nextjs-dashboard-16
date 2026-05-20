@@ -75,7 +75,7 @@ export function StaffTable() {
           </Select>
         </div>
         {/* Add Button */}
-        <Link href="/staff/tambah">
+        <Link href="/dashboard/staff/tambah">
           <Button className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Tambah Staff
@@ -126,7 +126,7 @@ export function StaffTable() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{staff.position}</TableCell>
                   <TableCell className="text-center">
-                    <Link href={`/staff/${staff.id}/edit`}>
+                    <Link href={`/dashboard/staff/${staff.id}/edit`}>
                       <Button variant="ghost" size="icon">
                         <Pencil className="h-4 w-4" />
                         <span className="sr-only">Edit {staff.name}</span>

@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import type { Personnel, Category, AssessmentAspect } from "@/lib/data"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
+import { LogOut } from "lucide-react"
+import { useSession, signOut } from "next-auth/react"
 
 interface MobileAssessmentListProps {
   personnel: Personnel
@@ -48,18 +51,53 @@ function getScoreColor(score: number) {
 }
 
 export function MobileAssessmentList({ personnel, category, assessmentAspects }: MobileAssessmentListProps) {
+  const { data: session } = useSession()
+
+  const userName = session?.user?.name || "User"
+  const userInitials = userName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()
+  const userEmail = session?.user?.email || ""
+
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href={`/kategori/${category.id}`} className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors">
+          <Link href={`/dashboard/kategori/${category.id}`} className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors">
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold text-foreground truncate">Penilaian Kinerja</h1>
             <p className="text-xs text-muted-foreground truncate">{category.name}</p>
           </div>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="relative h-8 w-8 rounded-full outline-none">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-card border-border mr-2" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none text-foreground">{userName}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+                  <p className="text-xs leading-none capitalize mt-1 text-primary">{session?.user?.role || "Member"}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem 
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

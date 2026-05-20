@@ -66,7 +66,7 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
     // Simulate save action
     toast.success(mode === "add" ? "Staff baru berhasil ditambahkan" : "Data staff berhasil diperbarui")
 
-    router.push("/staff")
+    router.push("/dashboard/staff")
   }
 
   const getInitials = (name: string) => {

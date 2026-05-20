@@ -5,17 +5,9 @@ import Overview from "@/app/ui/dashboard/overview";
 import DashboardCard from "@/app/ui/dashboard/dashboard-card";
 import { categories } from "@/lib/data";
 import {fetchDashboardKategoriStaff} from "@/lib/action";
-import { auth } from '@/auth'
 
 export default async function HomePage() {
     const dashboard_kategori_staff = await fetchDashboardKategoriStaff(); // Fetch
-
-    const session = await auth()
-    // console.log('asdajsdgajgdasgdj ', session?.user?.role)
-
-    // if (session?.user?.role === 'admin') {
-    //     return <h1>Halo, Administrator!</h1>
-    // }
 
     return (
     <div className="flex min-h-screen bg-background">

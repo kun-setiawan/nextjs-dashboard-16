@@ -22,9 +22,7 @@ export type KategoriStaff = {
   rekap_avg_score: number;
 };
 
-export type InvoiceForm = {
-  id: string;
-  customer_id: string;
-  amount: number;
-  status: 'pending' | 'paid';
+export type UserRole = {
+  user_id: string;
+  role: string;
 };

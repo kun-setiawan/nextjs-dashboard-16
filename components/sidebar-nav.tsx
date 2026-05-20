@@ -8,8 +8,8 @@ import { LayoutDashboard, Users, UserCog } from "lucide-react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Users, label: "Penilaian Kinerja", href: "/kategori" },
-  { icon: UserCog, label: "Daftar Staff", href: "/staff" },
+  { icon: Users, label: "Penilaian Kinerja", href: "/dashboard/kategori" },
+  { icon: UserCog, label: "Daftar Staff", href: "/dashboard/staff" },
 ]
 
 export function SidebarNav() {

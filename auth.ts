@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { authConfig } from './auth.config';
+import {fetchUserRole} from "@/lib/action";
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -38,11 +39,15 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           return null;
         }
 
+        // Fetch user role from users_role table
+        const userRoles = await fetchUserRole(data.user.id); // Fetch
+
         // 3. Return the user object for Auth.js session
         return {
           id: data.user.id,
           name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
           email: data.user.email,
+          role: userRoles?userRoles[0].role : 'member',
         };
       },
     }),

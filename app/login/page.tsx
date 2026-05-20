@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
-import { authenticate } from "@/lib/action"
+import { authenticate } from "@/lib/auth-actions"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
