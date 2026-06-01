@@ -3,7 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { authConfig } from './auth.config';
-import {fetchUserRole} from "@/lib/action";
+import { fetchUserRole } from "@/lib/action";
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -47,9 +47,24 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           id: data.user.id,
           name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
           email: data.user.email,
-          role: userRoles?userRoles[0].role : 'member',
+          role: userRoles ? userRoles[0].role : 'member',
         };
       },
     }),
   ],
+  callbacks: {
+    async session({ session, token, user }) {
+      // If you are using JSON Web Tokens (JWT) strategy:
+      if (token?.sub && session.user) {
+        session.user.id = token.sub;
+      }
+
+      // If you are using a Database Adapter (Prisma, Drizzle, etc.):
+      // if (user && session.user) {
+      //   session.user.id = user.id;
+      // }
+
+      return session;
+    },
+  },
 });

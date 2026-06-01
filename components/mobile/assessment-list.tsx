@@ -10,10 +10,10 @@ import type { Personnel, Category, AssessmentAspect } from "@/lib/data"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { LogOut } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
+import { Staff } from '@/lib/definitions';
 
 interface MobileAssessmentListProps {
-  personnel: Personnel
-  category: Category
+  staff: Staff
   assessmentAspects: AssessmentAspect[]
 }
 
@@ -50,10 +50,11 @@ function getScoreColor(score: number) {
   return "text-destructive"
 }
 
-export function MobileAssessmentList({ personnel, category, assessmentAspects }: MobileAssessmentListProps) {
+export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessmentListProps) {
   const { data: session } = useSession()
 
-  const userName = session?.user?.name || "User"
+  // const userName = session?.user?.name || "User"
+  const userName = staff?.nama_staff || "User"
   const userInitials = userName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()
   const userEmail = session?.user?.email || ""
 
@@ -62,12 +63,8 @@ export function MobileAssessmentList({ personnel, category, assessmentAspects }:
       {/* Mobile Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href={`/dashboard/kategori/${category.id}`} className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors">
-            <ArrowLeft className="h-5 w-5 text-foreground" />
-          </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold text-foreground truncate">Penilaian Kinerja</h1>
-            <p className="text-xs text-muted-foreground truncate">{category.name}</p>
           </div>
           
           <DropdownMenu>
@@ -107,9 +104,9 @@ export function MobileAssessmentList({ personnel, category, assessmentAspects }:
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={personnel.avatar || "/placeholder.svg"} alt={personnel.name} />
+                <AvatarImage src={staff.foto_profil || "/placeholder.svg"} alt={staff.nama_staff} />
                 <AvatarFallback className="bg-secondary text-secondary-foreground text-lg">
-                  {personnel.name
+                  {staff.nama_staff
                     .split(" ")
                     .map((n) => n[0])
                     .join("")
@@ -118,14 +115,14 @@ export function MobileAssessmentList({ personnel, category, assessmentAspects }:
               </Avatar>
 
               <div className="flex-1 min-w-0">
-                <h2 className="font-semibold text-foreground truncate">{personnel.name}</h2>
-                <p className="text-sm text-muted-foreground truncate">{personnel.position}</p>
+                <h2 className="font-semibold text-foreground truncate">{staff.nama_staff}</h2>
+                <p className="text-sm text-muted-foreground truncate">{staff.nama_kategori}</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="outline" className={`text-xs ${getStatusColor(personnel.status)}`}>
-                    {getStatusLabel(personnel.status)}
+                  <Badge variant="outline" className={`text-xs ${getStatusColor(staff.status)}`}>
+                    {getStatusLabel(staff.status)}
                   </Badge>
-                  <span className={`text-sm font-bold ${getScoreColor(personnel.performanceScore)}`}>
-                    {personnel.performanceScore}%
+                  <span className={`text-sm font-bold ${getScoreColor(staff.performance_score)}`}>
+                    {staff.performance_score}%
                   </span>
                 </div>
               </div>
@@ -135,10 +132,10 @@ export function MobileAssessmentList({ personnel, category, assessmentAspects }:
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                 <span>Progress Kinerja</span>
                 <span>
-                  {personnel.tasksCompleted}/{personnel.totalTasks} tugas
+                  {staff.tasks_completed}/{staff.total_tasks} tugas
                 </span>
               </div>
-              <Progress value={personnel.performanceScore} className="h-2" />
+              <Progress value={staff.performance_score} className="h-2" />
             </div>
           </CardContent>
         </Card>
@@ -148,7 +145,7 @@ export function MobileAssessmentList({ personnel, category, assessmentAspects }:
           <h3 className="text-sm font-semibold text-foreground px-1">Aspek Penilaian</h3>
 
           {assessmentAspects.map((aspect) => (
-            <Link key={aspect.id} href={`/mobile/penilaian/${personnel.id}/aspek/${aspect.id}`}>
+            <Link key={aspect.id} href={`/mobile/penilaian/${staff.user_id}/aspek/${aspect.id}`}>
               <Card className="bg-card border-border hover:bg-muted/50 transition-colors cursor-pointer">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">

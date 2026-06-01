@@ -27,6 +27,34 @@ export async function fetchUserRole(userId: string) {
   }
 }
 
+export async function fetchStaffByUserId(userId: string) {
+  try {
+    const staffs = await sql<Staff[]>`
+      SELECT
+        s.id_staff,
+        s.id_kategori_staff,
+        s.user_id,
+        s.nama_staff,
+        s.foto_profil,
+        k.nama_kategori,
+      
+        'good' as status,
+        92 as performance_score,
+        48 as tasks_completed,
+        50 as total_tasks
+      FROM staff s, kategori_staff k
+      WHERE s.id_kategori_staff = k.id_kategori_staff
+        AND s.user_id = ${userId}
+    `;
+
+    return staffs;
+  } catch (err) {
+    console.error('Database Error:', err);
+    throw new Error('Failed to fetch customer by id.');
+  }
+}
+
+
 export async function fetchStaff() {
   try {
     const staffs = await sql<Staff[]>`
@@ -69,7 +97,7 @@ export async function fetchDashboardKategoriStaff() {
   var kategori_staffs = await fetchKategoriStaff();
   var staffs = await fetchStaff();
   for (const kategori_staff_each of kategori_staffs) {
-    kategori_staff_each.staffs = staffs.filter(staff => staff.id_kategori_staff===kategori_staff_each.id_kategori_staff);
+    kategori_staff_each.staffs = staffs.filter(staff => staff.id_kategori_staff === kategori_staff_each.id_kategori_staff);
     kategori_staff_each.rekap_avg_score = 80;
     for (const staff_each of kategori_staff_each.staffs) {
       staff_each.rekap_performance_score = 92;

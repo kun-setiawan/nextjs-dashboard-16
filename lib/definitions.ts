@@ -12,6 +12,12 @@ export type Staff = {
   rekap_status: 'excellent' | 'good' | 'average' | 'needs-improvement';
   rekap_tasks_completed: number;
   rekap_total_tasks: number;
+
+  nama_kategori: string;
+  status: 'excellent' | 'good' | 'average' | 'needs-improvement';
+  performance_score: number;
+  tasks_completed: number;
+  total_tasks: number;
 };
 
 export type KategoriStaff = {
