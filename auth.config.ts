@@ -1,16 +1,5 @@
-import type { NextAuthConfig, DefaultSession } from 'next-auth';
+import type { NextAuthConfig } from 'next-auth';
 
-// Extend NextAuth types to include our custom "role" property
-declare module 'next-auth' {
-  interface User {
-    role?: string;
-  }
-  interface Session {
-    user: {
-      role?: string;
-    } & DefaultSession['user'];
-  }
-}
 
 /**
  * Edge-compatible auth config.

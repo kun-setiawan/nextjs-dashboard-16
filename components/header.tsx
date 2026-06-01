@@ -23,7 +23,7 @@ export function Header({
   const { data: session } = useSession()
 
   const userName = session?.user?.name || "User"
-  const userInitials = userName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()
+  const userInitials = userName.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()
   const userEmail = session?.user?.email || ""
 
   return (
@@ -87,7 +87,7 @@ export function Header({
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none text-foreground">{userName}</p>
                   <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
-                  <p className="text-xs leading-none capitalize mt-1 text-primary">{session?.user?.role || "Member"}</p>
+                  <p className="text-xs leading-none capitalize mt-1 text-primary">{(session?.user as any)?.role || "Member"}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-border" />

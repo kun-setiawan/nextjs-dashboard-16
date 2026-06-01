@@ -1,12 +1,12 @@
 "use client"
 
-import { ArrowLeft, FileSearch, User } from "lucide-react"
+import { FileSearch, User } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import type { Personnel, Category, AssessmentAspect } from "@/lib/data"
+import type { Personnel, AssessmentAspect } from "@/lib/data"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { LogOut } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
@@ -55,7 +55,7 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
 
   // const userName = session?.user?.name || "User"
   const userName = staff?.nama_staff || "User"
-  const userInitials = userName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()
+  const userInitials = userName.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()
   const userEmail = session?.user?.email || ""
 
   return (
@@ -82,7 +82,7 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none text-foreground">{userName}</p>
                   <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
-                  <p className="text-xs leading-none capitalize mt-1 text-primary">{session?.user?.role || "Member"}</p>
+                  <p className="text-xs leading-none capitalize mt-1 text-primary">{(session?.user as any)?.role || "Member"}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-border" />
