@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowLeft, Plus, FileSpreadsheet, ImageIcon, Download, X, Upload } from "lucide-react"
+import { useState, useRef } from "react"
+import { ArrowLeft, Plus, FileSpreadsheet, ImageIcon, Download, X, Upload, Loader2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import type { Personnel, AssessmentAspect, Evidence } from "@/lib/data"
+import { toast } from "sonner"
 
 interface MobileEvidenceDetailProps {
   personnel: Personnel
@@ -22,6 +23,9 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
   const [evidences, setEvidences] = useState<Evidence[]>(aspect.evidences)
   const [showAddForm, setShowAddForm] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [newEvidence, setNewEvidence] = useState({
     type: "image" as "image" | "excel",
     name: "",
@@ -29,26 +33,107 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
     file: null as File | null,
   })
 
-  const handleAddEvidence = () => {
-    if (!newEvidence.name || !newEvidence.description) return
-
-    const newItem: Evidence = {
-      id: `e${Date.now()}`,
-      type: newEvidence.type,
-      name: newEvidence.name,
-      description: newEvidence.description,
-      url: newEvidence.type === "image" ? "/uploaded-evidence-photo.jpg" : "/files/new-evidence.xlsx",
-      previewUrl: newEvidence.type === "excel" ? "/excel-spreadsheet-preview.jpg" : undefined,
-    }
-
-    setEvidences((prev) => [...prev, newItem])
+  const resetForm = () => {
     setNewEvidence({
       type: "image",
       name: "",
       description: "",
       file: null,
     })
-    setShowAddForm(false)
+    setFilePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file size (10MB)
+    const MAX_SIZE = 10 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      toast.error("Ukuran file maksimal 10MB")
+      e.target.value = ""
+      return
+    }
+
+    setNewEvidence((prev) => ({
+      ...prev,
+      file,
+      name: prev.name || file.name.replace(/\.[^/.]+$/, ""),
+    }))
+
+    // Generate preview for images
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        setFilePreview(ev.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      setFilePreview(null)
+    }
+  }
+
+  const handleAddEvidence = async () => {
+    if (!newEvidence.name || !newEvidence.description) {
+      toast.error("Nama dan keterangan bukti harus diisi")
+      return
+    }
+
+    if (!newEvidence.file) {
+      toast.error("Silakan pilih file untuk diupload")
+      return
+    }
+
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", newEvidence.file)
+      formData.append("personnelId", personnel.id)
+      formData.append("aspectId", aspect.id)
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Gagal mengupload file")
+      }
+
+      const newItem: Evidence = {
+        id: `e${Date.now()}`,
+        type: result.type === "image" ? "image" : "excel",
+        name: newEvidence.name,
+        description: newEvidence.description,
+        url: result.url,
+        previewUrl: result.type === "excel" ? result.url : undefined,
+      }
+
+      setEvidences((prev) => [...prev, newItem])
+      resetForm()
+      setShowAddForm(false)
+      toast.success("Bukti penilaian berhasil diupload!")
+    } catch (error) {
+      console.error("Upload error:", error)
+      toast.error(
+        error instanceof Error ? error.message : "Gagal mengupload file. Silakan coba lagi."
+      )
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open && !isUploading) {
+      resetForm()
+      setShowAddForm(false)
+    }
   }
 
   return (
@@ -151,7 +236,7 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
       </main>
 
       {/* Add Evidence Dialog */}
-      <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+      <Dialog open={showAddForm} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-md mx-4 rounded-lg">
           <DialogHeader>
             <DialogTitle>Tambah Bukti Penilaian</DialogTitle>
@@ -162,7 +247,14 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
               <Label htmlFor="type">Tipe File</Label>
               <Select
                 value={newEvidence.type}
-                onValueChange={(value: "image" | "excel") => setNewEvidence((prev) => ({ ...prev, type: value }))}
+                onValueChange={(value: "image" | "excel") => {
+                  setNewEvidence((prev) => ({ ...prev, type: value, file: null }))
+                  setFilePreview(null)
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = ""
+                  }
+                }}
+                disabled={isUploading}
               >
                 <SelectTrigger id="type">
                   <SelectValue placeholder="Pilih tipe file" />
@@ -186,30 +278,52 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
 
             <div className="space-y-2">
               <Label htmlFor="file">Upload File</Label>
-              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:bg-muted/50 transition-colors cursor-pointer">
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+                  newEvidence.file
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:bg-muted/50"
+                } ${isUploading ? "opacity-50 pointer-events-none" : ""}`}
+              >
                 <input
+                  ref={fileInputRef}
                   type="file"
                   id="file"
                   className="hidden"
-                  accept={newEvidence.type === "image" ? "image/*" : ".xlsx,.xls"}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      setNewEvidence((prev) => ({
-                        ...prev,
-                        file,
-                        name: prev.name || file.name,
-                      }))
-                    }
-                  }}
+                  accept={newEvidence.type === "image" ? "image/jpeg,image/png,image/webp,image/gif" : ".xlsx,.xls"}
+                  onChange={handleFileSelect}
+                  disabled={isUploading}
                 />
                 <label htmlFor="file" className="cursor-pointer">
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    {newEvidence.file
-                      ? newEvidence.file.name
-                      : `Klik untuk upload ${newEvidence.type === "image" ? "foto" : "file Excel"}`}
-                  </p>
+                  {filePreview ? (
+                    <div className="space-y-2">
+                      <img
+                        src={filePreview}
+                        alt="Preview"
+                        className="max-h-32 mx-auto rounded-md object-contain"
+                      />
+                      <p className="text-xs text-primary font-medium">{newEvidence.file?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {newEvidence.file && (newEvidence.file.size / 1024).toFixed(1)} KB — Klik untuk ganti
+                      </p>
+                    </div>
+                  ) : newEvidence.file ? (
+                    <div className="space-y-2">
+                      <FileSpreadsheet className="h-8 w-8 mx-auto text-primary" />
+                      <p className="text-xs text-primary font-medium">{newEvidence.file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(newEvidence.file.size / 1024).toFixed(1)} KB — Klik untuk ganti
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        {`Klik untuk upload ${newEvidence.type === "image" ? "foto" : "file Excel"}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Maksimal 10MB</p>
+                    </>
+                  )}
                 </label>
               </div>
             </div>
@@ -221,6 +335,7 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
                 placeholder="Contoh: Foto Absensi Fingerprint"
                 value={newEvidence.name}
                 onChange={(e) => setNewEvidence((prev) => ({ ...prev, name: e.target.value }))}
+                disabled={isUploading}
               />
             </div>
 
@@ -237,20 +352,33 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
                     description: e.target.value,
                   }))
                 }
+                disabled={isUploading}
               />
             </div>
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setShowAddForm(false)}>
+            <Button
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={() => handleDialogClose(false)}
+              disabled={isUploading}
+            >
               Batal
             </Button>
             <Button
               className="flex-1"
               onClick={handleAddEvidence}
-              disabled={!newEvidence.name || !newEvidence.description}
+              disabled={!newEvidence.name || !newEvidence.description || !newEvidence.file || isUploading}
             >
-              Simpan
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Mengupload...
+                </>
+              ) : (
+                "Simpan"
+              )}
             </Button>
           </div>
         </DialogContent>

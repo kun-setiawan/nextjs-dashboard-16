@@ -31,6 +31,7 @@ export const metadata: Metadata = {
 }
 
 import { SessionProvider } from "@/components/session-provider"
+import { Toaster } from "sonner"
 
 export default function RootLayout({
   children,
@@ -43,6 +44,7 @@ export default function RootLayout({
         <SessionProvider>
           {children}
         </SessionProvider>
+        <Toaster richColors position="top-center" />
         <Analytics />
       </body>
     </html>
