@@ -158,3 +158,73 @@ export interface Category {
   averageScore: number
 }
 
+export interface Evidence {
+  id: string
+  type: string
+  name: string
+  description: string
+  url: string
+  previewUrl?: string
+  id_aspek_penilaian?: string
+}
+
+export interface AssessmentAspect {
+  id: string
+  name: string
+  indicator: string
+  responsible: string
+  weight: number
+  evidences: Evidence[]
+}
+
+export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId: string): Promise<AssessmentAspect[]> {
+  try {
+    const aspects = await sql<{
+      id: string;
+      name: string;
+      indicator: string;
+      responsible: string;
+      weight: number;
+    }[]>`
+      SELECT 
+        a.id_aspek_penilaian AS id,
+        a.nama_aspek         AS name,
+        a.indikator          AS indicator,
+        a.penanggung_jawab   AS responsible,
+        0                    AS weight
+      FROM aspek_penilaian a
+      JOIN aspek_penilaian_kategori_staff ak
+        ON a.id_aspek_penilaian = ak.id_aspek_penilaian
+      WHERE ak.id_kategori_staff = ${categoryId}
+      ORDER BY a.nama_aspek ASC
+    `;
+
+    const evidences = await sql<{
+      id: string;
+      type: string;
+      name: string;
+      description: string;
+      url: string;
+      id_aspek_penilaian: string;
+    }[]>`
+      SELECT 
+        id_bukti_penilaian  AS id,
+        tipe_bukti          AS type,
+        nama_bukti          AS name,
+        keterangan          AS description,
+        file_bukti          AS url,
+        id_aspek_penilaian
+      FROM bukti_penilaian
+      WHERE id_staff = ${staffId}
+    `;
+
+    return aspects.map((a) => ({
+      ...a,
+      evidences: evidences.filter((e) => e.id_aspek_penilaian === a.id),
+    }));
+  } catch (err) {
+    console.error('Database Error fetchAssessmentAspectsByStaff:', err);
+    throw new Error('Failed to fetch assessment aspects.');
+  }
+}
+

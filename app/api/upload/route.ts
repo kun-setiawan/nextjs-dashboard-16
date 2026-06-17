@@ -12,12 +12,32 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const personnelId = formData.get('personnelId') as string | null;
-    const aspectId = formData.get('aspectId') as string | null;
+    // id_staff of the uploader
+    const idStaff = formData.get('personnelId') as string | null;
+    // id_aspek_penilaian
+    const idAspek = formData.get('aspectId') as string | null;
+    // Optional: active period UUID (sent by client if known)
+    const idPeriode = (formData.get('periodeId') as string | null) || null;
+    // Optional: the uploader's user_id for created_by
+    const createdBy = (formData.get('createdBy') as string | null) || idStaff || null;
 
     if (!file) {
       return NextResponse.json(
         { error: 'File tidak ditemukan' },
+        { status: 400 },
+      );
+    }
+
+    if (!idStaff) {
+      return NextResponse.json(
+        { error: 'Staff ID tidak ditemukan' },
+        { status: 400 },
+      );
+    }
+
+    if (!idAspek) {
+      return NextResponse.json(
+        { error: 'Aspek penilaian ID tidak ditemukan' },
         { status: 400 },
       );
     }
@@ -46,11 +66,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build a unique file path: evidence/{personnelId}/{aspectId}/{timestamp}_{filename}
+    // Build a unique file path: evidence/{idStaff}/{idAspek}/{timestamp}_{filename}
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const folder = [personnelId || 'unknown', aspectId || 'unknown'].join('/');
-    const filePath = `${folder}/${timestamp}_${sanitizedName}`;
+    const filePath = `${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
 
     // Convert File to ArrayBuffer for upload
     const arrayBuffer = await file.arrayBuffer();
@@ -78,34 +97,41 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(data.path);
 
     const isImage = allowedImageTypes.includes(file.type);
+    const tipeBukti = isImage ? 'image' : 'excel';
 
     // Parse optional metadata from form
     const namaBukti = (formData.get('namaBukti') as string) || file.name;
     const keterangan = (formData.get('keterangan') as string) || '';
 
-    // Write a record to the bukti_penilaian table
-    const { error: dbError } = await supabaseAdmin
+    // Write a record to the bukti_penilaian table with correct column names
+    const { data: dbData, error: dbError } = await supabaseAdmin
       .from('bukti_penilaian')
       .insert({
-        personnel_id: personnelId || null,
-        aspect_id: aspectId || null,
-        file_bukti: data.path,
-        nama_bukti: namaBukti,
-        keterangan: keterangan,
-        tipe_file: isImage ? 'image' : 'excel',
-        url_publik: urlData.publicUrl,
-      });
+        id_staff:           idStaff,
+        id_aspek_penilaian: idAspek,
+        id_periode:         idPeriode,
+        file_bukti:         urlData.publicUrl,   // store public URL, same as foto_profil
+        nama_bukti:         namaBukti,
+        keterangan:         keterangan,
+        tipe_bukti:         tipeBukti,
+        created_by:         createdBy,
+      })
+      .select('id_bukti_penilaian')
+      .single();
 
     if (dbError) {
       console.error('Supabase DB insert error:', dbError);
-      // File was uploaded but DB record failed — log but still return success
-      // so the uploaded file isn't "lost" to the user.
+      return NextResponse.json(
+        { error: `File berhasil diupload tapi gagal menyimpan ke database: ${dbError.message}` },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({
-      url: urlData.publicUrl,
-      path: data.path,
-      type: isImage ? 'image' : 'excel',
+      id:       dbData.id_bukti_penilaian,
+      url:      urlData.publicUrl,
+      path:     data.path,
+      type:     tipeBukti,
       fileName: file.name,
     });
   } catch (err) {
@@ -116,3 +142,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

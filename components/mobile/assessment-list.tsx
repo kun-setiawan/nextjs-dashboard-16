@@ -6,7 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import type { Personnel, AssessmentAspect } from "@/lib/data"
+import type { AssessmentAspect } from "@/lib/action"
+import type { Personnel } from "@/lib/data"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { LogOut } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
@@ -151,50 +152,62 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground px-1">Aspek Penilaian</h3>
 
-          {assessmentAspects.map((aspect) => (
-            <Link key={aspect.id} href={`/mobile/penilaian/aspek/${aspect.id}`}>
-              <Card className="bg-card border-border hover:bg-muted/50 transition-colors cursor-pointer">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-foreground text-sm">{aspect.name}</h4>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{aspect.indicator}</p>
+          {assessmentAspects.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              Belum ada aspek penilaian untuk kategori Anda.
+            </div>
+          ) : (
+            assessmentAspects.map((aspect) => (
+              <Link key={aspect.id} href={`/mobile/penilaian/aspek/${aspect.id}`}>
+                <Card className="bg-card border-border hover:bg-muted/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-foreground text-sm">{aspect.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{aspect.indicator}</p>
 
-                      <div className="flex flex-wrap items-center gap-2 mt-3">
-                        <Badge variant="outline" className="text-xs bg-secondary/50">
-                          <User className="h-3 w-3 mr-1" />
-                          {aspect.responsible}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          Bobot: {aspect.weight}%
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                          {aspect.responsible && (
+                            <Badge variant="outline" className="text-xs bg-secondary/50">
+                              <User className="h-3 w-3 mr-1" />
+                              {aspect.responsible}
+                            </Badge>
+                          )}
+                          {aspect.weight && (
+                            <Badge variant="secondary" className="text-xs">
+                              Bobot: {aspect.weight}%
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className="flex items-center gap-1 text-xs">
+                          <FileSearch className="h-4 w-4" />
+                          <span>{aspect.evidences?.length ?? 0}</span>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <div className="flex items-center gap-1 text-xs">
-                        <FileSearch className="h-4 w-4" />
-                        <span>{aspect.evidences.length}</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                  </CardContent>
+                </Card>
+              </Link>
+            ))
+          )}
         </div>
 
         {/* Total Weight Summary */}
-        <Card className="bg-muted/30 border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total Bobot</span>
-              <Badge variant="default" className="text-sm">
-                {assessmentAspects.reduce((acc, a) => acc + a.weight, 0)}%
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
+        {assessmentAspects.some(a => a.weight) && (
+          <Card className="bg-muted/30 border-border">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Bobot</span>
+                <Badge variant="default" className="text-sm">
+                  {assessmentAspects.reduce((acc, a) => acc + (a.weight ?? 0), 0)}%
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   )

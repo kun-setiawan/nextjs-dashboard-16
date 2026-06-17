@@ -11,16 +11,18 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
-import type { Personnel, AssessmentAspect, Evidence } from "@/lib/data"
+import type { AssessmentAspect } from "@/lib/action"
+import type { Staff } from "@/lib/definitions"
 import { toast } from "sonner"
 
 interface MobileEvidenceDetailProps {
-  personnel: Personnel
+  staff: Staff
   aspect: AssessmentAspect
 }
 
-export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetailProps) {
-  const [evidences, setEvidences] = useState<Evidence[]>(aspect.evidences)
+export function MobileEvidenceDetail({ staff, aspect }: MobileEvidenceDetailProps) {
+  type Evidence = AssessmentAspect["evidences"][number]
+  const [evidences, setEvidences] = useState<Evidence[]>(aspect.evidences ?? [])
   const [showAddForm, setShowAddForm] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -92,7 +94,7 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
     try {
       const formData = new FormData()
       formData.append("file", newEvidence.file)
-      formData.append("personnelId", personnel.id)
+      formData.append("personnelId", staff.id_staff)
       formData.append("aspectId", aspect.id)
       formData.append("namaBukti", newEvidence.name)
       formData.append("keterangan", newEvidence.description)
@@ -144,14 +146,14 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <Link
-            href={`/mobile/penilaian/${personnel.id}`}
+            href="/mobile/penilaian"
             className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors"
           >
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold text-foreground truncate">{aspect.name}</h1>
-            <p className="text-xs text-muted-foreground truncate">Bukti Penilaian - {personnel.name}</p>
+            <p className="text-xs text-muted-foreground truncate">Bukti Penilaian - {staff.nama_staff}</p>
           </div>
         </div>
       </header>

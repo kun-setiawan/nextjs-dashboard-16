@@ -1,4 +1,5 @@
-import { categories, assessmentAspects } from "@/lib/data"
+import { auth } from "@/auth"
+import { fetchStaffByUserId, fetchAssessmentAspectsByStaff } from "@/lib/action"
 import { MobileEvidenceDetail } from "@/components/mobile/evidence-detail"
 
 export default async function MobileEvidenceDetailPage({
@@ -7,29 +8,38 @@ export default async function MobileEvidenceDetailPage({
   params: Promise<{ aspectId: string }>
 }) {
   const { aspectId } = await params
-  const personnelId = "1";
+  const session = await auth()
 
-  // Find personnel across all categories
-  let personnel = null
-  let category = null
-  for (const cat of categories) {
-    const found = cat.personnel.find((p) => p.id === personnelId)
-    if (found) {
-      personnel = found
-      category = cat
-      break
-    }
-  }
-
-  const aspect = assessmentAspects.find((a) => a.id === aspectId)
-
-  if (!personnel || !category || !aspect) {
+  if (!session?.user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <p className="text-muted-foreground">Data tidak ditemukan</p>
+        <p className="text-muted-foreground">Sesi tidak ditemukan. Silakan login kembali.</p>
       </div>
     )
   }
 
-  return <MobileEvidenceDetail personnel={personnel} aspect={aspect} />
+  const staffList = await fetchStaffByUserId(session.user.id)
+  const staff = staffList[0]
+
+  if (!staff) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <p className="text-muted-foreground">Data staff tidak ditemukan.</p>
+      </div>
+    )
+  }
+
+  // Fetch all aspects for this category, then find the requested one
+  const aspects = await fetchAssessmentAspectsByStaff(staff.id_kategori_staff, staff.id_staff)
+  const aspect = aspects.find((a) => a.id === aspectId)
+
+  if (!aspect) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <p className="text-muted-foreground">Aspek penilaian tidak ditemukan.</p>
+      </div>
+    )
+  }
+
+  return <MobileEvidenceDetail staff={staff} aspect={aspect} />
 }
