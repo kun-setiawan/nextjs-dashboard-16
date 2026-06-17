@@ -152,7 +152,7 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
           <h3 className="text-sm font-semibold text-foreground px-1">Aspek Penilaian</h3>
 
           {assessmentAspects.map((aspect) => (
-            <Link key={aspect.id} href={`/mobile/penilaian/${staff.user_id}/aspek/${aspect.id}`}>
+            <Link key={aspect.id} href={`/mobile/penilaian/aspek/${aspect.id}`}>
               <Card className="bg-card border-border hover:bg-muted/50 transition-colors cursor-pointer">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
