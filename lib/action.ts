@@ -110,6 +110,34 @@ export async function fetchDashboardKategoriStaff() {
   return kategori_staffs;
 }
 
+export async function updateStaffName(idStaff: string, namaStaff: string) {
+  try {
+    await sql`
+      UPDATE staff
+      SET nama_staff = ${namaStaff}
+      WHERE id_staff = ${idStaff}
+    `;
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error:', err);
+    throw new Error('Failed to update staff name.');
+  }
+}
+
+export async function updateStaffFotoProfil(idStaff: string, fotoProfil: string) {
+  try {
+    await sql`
+      UPDATE staff
+      SET foto_profil = ${fotoProfil}
+      WHERE id_staff = ${idStaff}
+    `;
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error:', err);
+    throw new Error('Failed to update staff photo.');
+  }
+}
+
 export interface Personnel {
   id: string
   name: string

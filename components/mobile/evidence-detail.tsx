@@ -94,6 +94,8 @@ export function MobileEvidenceDetail({ personnel, aspect }: MobileEvidenceDetail
       formData.append("file", newEvidence.file)
       formData.append("personnelId", personnel.id)
       formData.append("aspectId", aspect.id)
+      formData.append("namaBukti", newEvidence.name)
+      formData.append("keterangan", newEvidence.description)
 
       const response = await fetch("/api/upload", {
         method: "POST",

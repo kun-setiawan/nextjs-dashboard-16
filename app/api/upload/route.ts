@@ -79,6 +79,29 @@ export async function POST(request: NextRequest) {
 
     const isImage = allowedImageTypes.includes(file.type);
 
+    // Parse optional metadata from form
+    const namaBukti = (formData.get('namaBukti') as string) || file.name;
+    const keterangan = (formData.get('keterangan') as string) || '';
+
+    // Write a record to the bukti_penilaian table
+    const { error: dbError } = await supabaseAdmin
+      .from('bukti_penilaian')
+      .insert({
+        personnel_id: personnelId || null,
+        aspect_id: aspectId || null,
+        file_bukti: data.path,
+        nama_bukti: namaBukti,
+        keterangan: keterangan,
+        tipe_file: isImage ? 'image' : 'excel',
+        url_publik: urlData.publicUrl,
+      });
+
+    if (dbError) {
+      console.error('Supabase DB insert error:', dbError);
+      // File was uploaded but DB record failed — log but still return success
+      // so the uploaded file isn't "lost" to the user.
+    }
+
     return NextResponse.json({
       url: urlData.publicUrl,
       path: data.path,

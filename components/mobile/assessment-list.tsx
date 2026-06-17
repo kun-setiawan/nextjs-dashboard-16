@@ -86,6 +86,13 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link href="/mobile/profil" className="flex items-center">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Edit Profil</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem 
                 onClick={() => signOut({ callbackUrl: '/login' })}
                 className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
