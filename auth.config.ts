@@ -24,7 +24,7 @@ export const authConfig = {
           if (userRole === 'admin') {
             return Response.redirect(new URL('/dashboard', nextUrl));
           }
-          return Response.redirect(new URL('/mobile/penilaian/1', nextUrl));
+          return Response.redirect(new URL('/mobile/penilaian', nextUrl));
         }
         return true;
       }
@@ -37,12 +37,12 @@ export const authConfig = {
         if (userRole === 'admin') {
           return Response.redirect(new URL('/dashboard', nextUrl));
         }
-        return Response.redirect(new URL('/mobile/penilaian/1', nextUrl));
+        return Response.redirect(new URL('/mobile/penilaian', nextUrl));
       }
 
       // Prevent non-admin users from accessing /dashboard
       if (isOnDashboard && userRole !== 'admin') {
-        return Response.redirect(new URL('/mobile/penilaian/1', nextUrl));
+        return Response.redirect(new URL('/mobile/penilaian', nextUrl));
       }
 
       return true;

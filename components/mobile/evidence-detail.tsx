@@ -297,6 +297,7 @@ export function MobileEvidenceDetail({ staff, aspect }: MobileEvidenceDetailProp
                   accept={newEvidence.type === "image" ? "image/jpeg,image/png,image/webp,image/gif" : ".xlsx,.xls"}
                   onChange={handleFileSelect}
                   disabled={isUploading}
+                  capture={newEvidence.type === "image" ? "environment" : undefined}
                 />
                 <label htmlFor="file" className="cursor-pointer">
                   {filePreview ? (
