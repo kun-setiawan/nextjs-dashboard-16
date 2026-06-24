@@ -238,6 +238,58 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ─── Upsert rekap_penilaian_staff ──────────────────────────────────────
+    // For every staff in rekap_penilaian_aspek (periode aktif), hitung rata-rata
+    // penilaian lalu upsert ke rekap_penilaian_staff.
+
+    if (activePeriodeId) {
+      // Ambil semua rekap untuk periode aktif, grouped per staff
+      const { data: rekapRows, error: rekapFetchError } = await supabaseAdmin
+        .from('rekap_penilaian_aspek')
+        .select('id_staff, penilaian')
+        .eq('id_periode', activePeriodeId);
+
+      if (rekapFetchError || !rekapRows) {
+        console.warn('Gagal mengambil rekap_penilaian_aspek untuk rekap_penilaian_staff:', rekapFetchError?.message);
+      } else {
+        // Hitung rata-rata penilaian per staff
+        const staffPenilaianMap = new Map<string, { total: number; count: number }>();
+        for (const row of rekapRows) {
+          const existing = staffPenilaianMap.get(row.id_staff) ?? { total: 0, count: 0 };
+          staffPenilaianMap.set(row.id_staff, {
+            total: existing.total + (row.penilaian ?? 0),
+            count: existing.count + 1,
+          });
+        }
+
+        // Upsert satu record per staff
+        for (const [staffId, { total, count }] of staffPenilaianMap.entries()) {
+          const avgPenilaian = count > 0 ? Math.round(total / count) : 0;
+
+          const { error: staffUpsertError } = await supabaseAdmin
+            .from('rekap_penilaian_staff')
+            .upsert(
+              {
+                id_periode: activePeriodeId,
+                id_staff:   staffId,
+                penilaian:  avgPenilaian,
+              },
+              {
+                onConflict:       'id_periode,id_staff',
+                ignoreDuplicates: false,
+              },
+            );
+
+          if (staffUpsertError) {
+            console.warn(
+              `Gagal upsert rekap_penilaian_staff untuk staff ${staffId}:`,
+              staffUpsertError.message,
+            );
+          }
+        }
+      }
+    }
+
     // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
