@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
     const idStaff = formData.get('personnelId') as string | null;
     // id_aspek_penilaian
     const idAspek = formData.get('aspectId') as string | null;
-    // Optional: active period UUID (sent by client if known)
-    const idPeriode = (formData.get('periodeId') as string | null) || null;
+    // Optional: active period UUID hint from client (will be overridden by DB lookup below)
+    const idPeriodeHint = (formData.get('periodeId') as string | null) || null;
     // Optional: the uploader's user_id for created_by
     const createdBy = (formData.get('createdBy') as string | null) || idStaff || null;
 
@@ -66,6 +66,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ─── Resolve active periode BEFORE inserting bukti_penilaian ────────────
+    let activePeriodeId: string | null = idPeriodeHint;
+    let jumlahHariKerja: number = 0;
+
+    {
+      // Always fetch the active periode from DB to ensure id_periode is correct.
+      const { data: periodeData, error: periodeError } = await supabaseAdmin
+        .from('periode')
+        .select('id_periode, jumlah_hari_kerja')
+        .eq('status', 'aktif')
+        .single();
+
+      if (periodeError || !periodeData) {
+        console.warn('Tidak ada periode aktif ditemukan:', periodeError?.message);
+        // Fall back to hint value (may be null); upload still proceeds
+      } else {
+        activePeriodeId = periodeData.id_periode;
+        jumlahHariKerja = periodeData.jumlah_hari_kerja ?? 0;
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Build a unique file path: evidence/{idStaff}/{idAspek}/{timestamp}_{filename}
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -109,7 +131,7 @@ export async function POST(request: NextRequest) {
       .insert({
         id_staff:           idStaff,
         id_aspek_penilaian: idAspek,
-        id_periode:         idPeriode,
+        id_periode:         activePeriodeId,
         file_bukti:         urlData.publicUrl,   // store public URL, same as foto_profil
         nama_bukti:         namaBukti,
         keterangan:         keterangan,
@@ -126,6 +148,97 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
+
+    // ─── Update rekap_penilaian_aspek ───────────────────────────────────────
+    // activePeriodeId and jumlahHariKerja are already resolved above.
+
+    if (activePeriodeId) {
+      // 2. Fetch all aspek_penilaian records
+      const { data: allAspekData, error: aspekFetchError } = await supabaseAdmin
+        .from('aspek_penilaian')
+        .select('id_aspek_penilaian, unit_waktu, jumlah_kegiatan');
+
+      if (aspekFetchError || !allAspekData) {
+        console.warn('Gagal mengambil data aspek_penilaian:', aspekFetchError?.message);
+      } else {
+        // 3. Fetch all staff records
+        const { data: allStaffData, error: staffFetchError } = await supabaseAdmin
+          .from('staff')
+          .select('id_staff');
+
+        if (staffFetchError || !allStaffData) {
+          console.warn('Gagal mengambil data staff:', staffFetchError?.message);
+        } else {
+          // 4. For each combination of staff x aspek, upsert rekap_penilaian_aspek
+          for (const aspek of allAspekData) {
+            // Calculate total_bukti based on unit_waktu
+            let divisor = 1;
+            const unitWaktu = (aspek.unit_waktu ?? '').toLowerCase();
+            if (unitWaktu === 'bulan') {
+              divisor = 30;
+            } else if (unitWaktu === 'minggu') {
+              divisor = 7;
+            }
+            // else 'hari' or anything else → divisor = 1
+
+            const totalBukti = Math.floor(jumlahHariKerja / divisor) * (aspek.jumlah_kegiatan ?? 1);
+
+            for (const staff of allStaffData) {
+              // 5. Count bukti_penilaian records for this staff + aspek + periode
+              const { count: jumlahBukti, error: countError } = await supabaseAdmin
+                .from('bukti_penilaian')
+                .select('id_bukti_penilaian', { count: 'exact', head: true })
+                .eq('id_periode', activePeriodeId)
+                .eq('id_staff', staff.id_staff)
+                .eq('id_aspek_penilaian', aspek.id_aspek_penilaian);
+
+              if (countError) {
+                console.warn(
+                  `Gagal menghitung bukti untuk staff ${staff.id_staff} aspek ${aspek.id_aspek_penilaian}:`,
+                  countError.message,
+                );
+                continue;
+              }
+
+              const buktiCount = jumlahBukti ?? 0;
+
+              // 6. Calculate penilaian percentage
+              const penilaian = totalBukti > 0
+                ? Math.min(100, Math.round((buktiCount / totalBukti) * 100))
+                : 0;
+
+              // 7. Upsert rekap_penilaian_aspek
+              //    ON CONFLICT (id_periode, id_staff, id_aspek_penilaian) → update jumlah_bukti, total_bukti, penilaian
+              const { error: upsertError } = await supabaseAdmin
+                .from('rekap_penilaian_aspek')
+                .upsert(
+                  {
+                    id_periode:          activePeriodeId,
+                    id_staff:            staff.id_staff,
+                    id_aspek_penilaian:  aspek.id_aspek_penilaian,
+                    jumlah_bukti:        buktiCount,
+                    total_bukti:         totalBukti,
+                    penilaian:           penilaian,
+                  },
+                  {
+                    onConflict: 'id_periode,id_staff,id_aspek_penilaian',
+                    ignoreDuplicates: false,
+                  },
+                );
+
+              if (upsertError) {
+                console.warn(
+                  `Gagal upsert rekap_penilaian_aspek untuk staff ${staff.id_staff} aspek ${aspek.id_aspek_penilaian}:`,
+                  upsertError.message,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
       id:       dbData.id_bukti_penilaian,
