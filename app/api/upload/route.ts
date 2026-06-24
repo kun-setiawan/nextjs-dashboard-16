@@ -350,6 +350,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ─── Upsert rekap_penilaian_total ───────────────────────────────────────
+    // Hitung rata-rata penilaian dari seluruh rekap_penilaian_kategori
+    // untuk periode aktif, lalu upsert satu record ke rekap_penilaian_total.
+
+    if (activePeriodeId) {
+      const { data: kategoriRows, error: kategoriRowsError } = await supabaseAdmin
+        .from('rekap_penilaian_kategori')
+        .select('penilaian')
+        .eq('id_periode', activePeriodeId);
+
+      if (kategoriRowsError || !kategoriRows) {
+        console.warn(
+          'Gagal mengambil rekap_penilaian_kategori untuk rekap_penilaian_total:',
+          kategoriRowsError?.message,
+        );
+      } else if (kategoriRows.length > 0) {
+        const totalSum = kategoriRows.reduce((sum, r) => sum + (r.penilaian ?? 0), 0);
+        const avgTotal = Math.round(totalSum / kategoriRows.length);
+
+        const { error: totalUpsertError } = await supabaseAdmin
+          .from('rekap_penilaian_total')
+          .upsert(
+            {
+              id_periode: activePeriodeId,
+              penilaian:  avgTotal,
+            },
+            {
+              onConflict:       'id_periode',
+              ignoreDuplicates: false,
+            },
+          );
+
+        if (totalUpsertError) {
+          console.warn(
+            'Gagal upsert rekap_penilaian_total:',
+            totalUpsertError.message,
+          );
+        }
+      }
+    }
+
     // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
