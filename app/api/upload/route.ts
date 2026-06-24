@@ -290,6 +290,66 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ─── Upsert rekap_penilaian_kategori ────────────────────────────────────
+    // Hitung rata-rata penilaian per kategori_staff berdasarkan rekap_penilaian_staff
+    // (periode aktif), lalu upsert ke rekap_penilaian_kategori.
+
+    if (activePeriodeId) {
+      // Ambil semua record_penilaian_staff untuk periode aktif beserta id_kategori_staff
+      // dari tabel staff melalui relasi id_staff.
+      const { data: staffRekapRows, error: staffRekapError } = await supabaseAdmin
+        .from('rekap_penilaian_staff')
+        .select('id_staff, penilaian, staff(id_kategori_staff)')
+        .eq('id_periode', activePeriodeId);
+
+      if (staffRekapError || !staffRekapRows) {
+        console.warn(
+          'Gagal mengambil rekap_penilaian_staff untuk rekap_penilaian_kategori:',
+          staffRekapError?.message,
+        );
+      } else {
+        // Kelompokkan rata-rata penilaian per id_kategori_staff
+        const kategoriMap = new Map<string, { total: number; count: number }>();
+        for (const row of staffRekapRows) {
+          const staffRel = (row.staff as unknown) as { id_kategori_staff: string | null } | null;
+          const idKategori = staffRel?.id_kategori_staff ?? null;
+          if (!idKategori) continue; // lewati staff tanpa kategori
+
+          const existing = kategoriMap.get(idKategori) ?? { total: 0, count: 0 };
+          kategoriMap.set(idKategori, {
+            total: existing.total + (row.penilaian ?? 0),
+            count: existing.count + 1,
+          });
+        }
+
+        // Upsert satu record per kategori
+        for (const [idKategori, { total, count }] of kategoriMap.entries()) {
+          const avgPenilaian = count > 0 ? Math.round(total / count) : 0;
+
+          const { error: kategoriUpsertError } = await supabaseAdmin
+            .from('rekap_penilaian_kategori')
+            .upsert(
+              {
+                id_periode:        activePeriodeId,
+                id_kategori_staff: idKategori,
+                penilaian:         avgPenilaian,
+              },
+              {
+                onConflict:       'id_periode,id_kategori_staff',
+                ignoreDuplicates: false,
+              },
+            );
+
+          if (kategoriUpsertError) {
+            console.warn(
+              `Gagal upsert rekap_penilaian_kategori untuk kategori ${idKategori}:`,
+              kategoriUpsertError.message,
+            );
+          }
+        }
+      }
+    }
+
     // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
