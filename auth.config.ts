@@ -50,14 +50,21 @@ export const authConfig = {
     async jwt({ token, user }) {
       // The user object is only passed in during the initial sign in
       if (user) {
+        token.id = user.id;
         token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
-      // Pass the role from the token to the session
-      if (session.user && token.role) {
-        session.user.role = token.role as string;
+      if (session.user) {
+        if (token.id) {
+          session.user.id = token.id as string;
+        } else if (token.sub) {
+          session.user.id = token.sub;
+        }
+        if (token.role) {
+          session.user.role = token.role as string;
+        }
       }
       return session;
     },

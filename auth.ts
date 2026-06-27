@@ -52,19 +52,4 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async session({ session, token, user }) {
-      // If you are using JSON Web Tokens (JWT) strategy:
-      if (token?.sub && session.user) {
-        session.user.id = token.sub;
-      }
-
-      // If you are using a Database Adapter (Prisma, Drizzle, etc.):
-      // if (user && session.user) {
-      //   session.user.id = user.id;
-      // }
-
-      return session;
-    },
-  },
 });
