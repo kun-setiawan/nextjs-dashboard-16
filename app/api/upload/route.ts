@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       const { data: periodeData, error: periodeError } = await supabaseAdmin
         .from('periode')
         .select('id_periode, jumlah_hari_kerja')
-        .eq('status', 'aktif')
+        .eq('status', 'Aktif')
         .single();
 
       if (periodeError || !periodeData) {
@@ -156,7 +156,8 @@ export async function POST(request: NextRequest) {
       // 2. Fetch all aspek_penilaian records
       const { data: allAspekData, error: aspekFetchError } = await supabaseAdmin
         .from('aspek_penilaian')
-        .select('id_aspek_penilaian, unit_waktu, jumlah_kegiatan');
+        .select('id_aspek_penilaian, unit_waktu, jumlah_kegiatan')
+        .eq('id_aspek_penilaian', idAspek);
 
       if (aspekFetchError || !allAspekData) {
         console.warn('Gagal mengambil data aspek_penilaian:', aspekFetchError?.message);
@@ -164,7 +165,8 @@ export async function POST(request: NextRequest) {
         // 3. Fetch all staff records
         const { data: allStaffData, error: staffFetchError } = await supabaseAdmin
           .from('staff')
-          .select('id_staff');
+          .select('id_staff')
+          .eq('id_staff', idStaff);
 
         if (staffFetchError || !allStaffData) {
           console.warn('Gagal mengambil data staff:', staffFetchError?.message);
@@ -247,7 +249,9 @@ export async function POST(request: NextRequest) {
       const { data: rekapRows, error: rekapFetchError } = await supabaseAdmin
         .from('rekap_penilaian_aspek')
         .select('id_staff, penilaian')
-        .eq('id_periode', activePeriodeId);
+        .eq('id_periode', activePeriodeId)
+        .eq('id_staff', idStaff)
+        .eq('id_aspek_penilaian', idAspek);
 
       if (rekapFetchError || !rekapRows) {
         console.warn('Gagal mengambil rekap_penilaian_aspek untuk rekap_penilaian_staff:', rekapFetchError?.message);
@@ -294,13 +298,15 @@ export async function POST(request: NextRequest) {
     // Hitung rata-rata penilaian per kategori_staff berdasarkan rekap_penilaian_staff
     // (periode aktif), lalu upsert ke rekap_penilaian_kategori.
 
+    let paramIdKategori = null;
     if (activePeriodeId) {
       // Ambil semua record_penilaian_staff untuk periode aktif beserta id_kategori_staff
       // dari tabel staff melalui relasi id_staff.
       const { data: staffRekapRows, error: staffRekapError } = await supabaseAdmin
         .from('rekap_penilaian_staff')
         .select('id_staff, penilaian, staff(id_kategori_staff)')
-        .eq('id_periode', activePeriodeId);
+        .eq('id_periode', activePeriodeId)
+        .eq('id_staff', idStaff);
 
       if (staffRekapError || !staffRekapRows) {
         console.warn(
@@ -314,6 +320,7 @@ export async function POST(request: NextRequest) {
           const staffRel = (row.staff as unknown) as { id_kategori_staff: string | null } | null;
           const idKategori = staffRel?.id_kategori_staff ?? null;
           if (!idKategori) continue; // lewati staff tanpa kategori
+          paramIdKategori = idKategori;
 
           const existing = kategoriMap.get(idKategori) ?? { total: 0, count: 0 };
           kategoriMap.set(idKategori, {
@@ -358,7 +365,8 @@ export async function POST(request: NextRequest) {
       const { data: kategoriRows, error: kategoriRowsError } = await supabaseAdmin
         .from('rekap_penilaian_kategori')
         .select('penilaian')
-        .eq('id_periode', activePeriodeId);
+        .eq('id_periode', activePeriodeId)
+        .eq('id_kategori_staff', paramIdKategori);
 
       if (kategoriRowsError || !kategoriRows) {
         console.warn(

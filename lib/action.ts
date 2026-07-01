@@ -1,11 +1,12 @@
 'use server';
 
-
 import postgres from 'postgres';
+import { revalidatePath } from 'next/cache';
 import {
   Staff,
   KategoriStaff,
-  UserRole
+  UserRole,
+  Periode
 } from './definitions';
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
@@ -225,6 +226,243 @@ export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId:
   } catch (err) {
     console.error('Database Error fetchAssessmentAspectsByStaff:', err);
     throw new Error('Failed to fetch assessment aspects.');
+  }
+}
+
+export async function fetchPeriodeAktif(): Promise<Periode | null> {
+  try {
+    const periodes = await sql<Periode[]>`
+      SELECT *
+      FROM periode
+      WHERE status = 'Aktif'
+      LIMIT 1
+    `;
+    return periodes[0] ?? null;
+  } catch (err) {
+    console.error('Database Error fetchPeriodeAktif:', err);
+    throw new Error('Failed to fetch active periode.');
+  }
+}
+
+export interface EvidenceWithMonth {
+  id: string
+  type: string
+  name: string
+  description: string
+  url: string
+  previewUrl?: string
+  id_aspek_penilaian: string
+  bulan: number
+}
+
+export async function fetchEvidencesByMonth(
+  staffId: string,
+  aspectId: string,
+  bulan: number
+): Promise<EvidenceWithMonth[]> {
+  try {
+    const evidences = await sql<EvidenceWithMonth[]>`
+      SELECT
+        id_bukti_penilaian          AS id,
+        tipe_bukti                  AS type,
+        nama_bukti                  AS name,
+        keterangan                  AS description,
+        file_bukti                  AS url,
+        id_aspek_penilaian,
+        EXTRACT(MONTH FROM created_at)::int AS bulan
+      FROM bukti_penilaian
+      WHERE id_staff = ${staffId}
+        AND id_aspek_penilaian = ${aspectId}
+        AND EXTRACT(MONTH FROM created_at) = ${bulan}
+      ORDER BY created_at DESC
+    `;
+    return evidences;
+  } catch (err) {
+    console.error('Database Error fetchEvidencesByMonth:', err);
+    throw new Error('Failed to fetch evidences by month.');
+  }
+}
+
+export async function fetchEvidencesCountByMonth(
+  staffId: string,
+  aspectId: string
+): Promise<Record<number, number>> {
+  try {
+    const rows = await sql<{ bulan: number; jumlah: number }[]>`
+      SELECT
+        EXTRACT(MONTH FROM created_at)::int AS bulan,
+        COUNT(*)::int                        AS jumlah
+      FROM bukti_penilaian
+      WHERE id_staff = ${staffId}
+        AND id_aspek_penilaian = ${aspectId}
+      GROUP BY bulan
+    `;
+    const result: Record<number, number> = {};
+    for (const row of rows) {
+      result[row.bulan] = row.jumlah;
+    }
+    return result;
+  } catch (err) {
+    console.error('Database Error fetchEvidencesCountByMonth:', err);
+    throw new Error('Failed to fetch evidence counts by month.');
+  }
+}
+
+export async function fetchPeriode() {
+  try {
+    const periodes = await sql<Periode[]>`
+      SELECT *
+      FROM periode
+      ORDER BY tahun_periode DESC, semester DESC
+    `;
+    return periodes;
+  } catch (err) {
+    console.error('Database Error fetchPeriode:', err);
+    throw new Error('Failed to fetch periodes.');
+  }
+}
+
+export async function setPeriodeAktif(idPeriode: string) {
+  try {
+    await sql.begin(async (sql) => {
+      // Update all active periods to 'Tidak Aktif'
+      await sql`
+        UPDATE periode
+        SET status = 'Tidak Aktif'
+        WHERE status = 'Aktif'
+      `;
+      // Set the selected period to 'Aktif'
+      await sql`
+        UPDATE periode
+        SET status = 'Aktif'
+        WHERE id_periode = ${idPeriode}
+      `;
+    });
+    revalidatePath('/dashboard/periode');
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error in setPeriodeAktif:', err);
+    throw new Error('Failed to set active period.');
+  }
+}
+
+export async function hitungNilaiPeriode(idPeriode: string) {
+  try {
+    // 1. Get period details
+    const periodResults = await sql`
+      SELECT jumlah_hari_kerja FROM periode WHERE id_periode = ${idPeriode}
+    `;
+    if (periodResults.length === 0) {
+      throw new Error('Period not found');
+    }
+    const jumlahHariKerja = periodResults[0].jumlah_hari_kerja ?? 0;
+
+    // 2. Fetch all aspects
+    const aspects = await sql`
+      SELECT id_aspek_penilaian, unit_waktu, jumlah_kegiatan FROM aspek_penilaian
+    `;
+
+    // 3. Fetch all staff
+    const staffs = await sql`
+      SELECT id_staff FROM staff
+    `;
+
+    // 4. For each combination of staff x aspek, count bukti_penilaian and calculate rekap
+    await sql.begin(async (sql) => {
+      for (const aspek of aspects) {
+        let divisor = 1;
+        const unitWaktu = (aspek.unit_waktu ?? '').toLowerCase();
+        if (unitWaktu === 'bulan') {
+          divisor = 30;
+        } else if (unitWaktu === 'minggu') {
+          divisor = 7;
+        }
+        const totalBukti = Math.floor(jumlahHariKerja / divisor) * (aspek.jumlah_kegiatan ?? 1);
+
+        for (const staff of staffs) {
+          // Count bukti_penilaian records for this staff + aspek + periode
+          const counts = await sql`
+            SELECT COUNT(*)::int as count 
+            FROM bukti_penilaian 
+            WHERE id_periode = ${idPeriode} 
+              AND id_staff = ${staff.id_staff} 
+              AND id_aspek_penilaian = ${aspek.id_aspek_penilaian}
+          `;
+          const buktiCount = counts[0]?.count ?? 0;
+          const penilaian = totalBukti > 0
+            ? Math.min(100, Math.round((buktiCount / totalBukti) * 100))
+            : 0;
+
+          // Upsert into rekap_penilaian_aspek
+          await sql`
+            INSERT INTO rekap_penilaian_aspek (id_periode, id_staff, id_aspek_penilaian, jumlah_bukti, total_bukti, penilaian)
+            VALUES (${idPeriode}, ${staff.id_staff}, ${aspek.id_aspek_penilaian}, ${buktiCount}, ${totalBukti}, ${penilaian})
+            ON CONFLICT (id_periode, id_staff, id_aspek_penilaian)
+            DO UPDATE SET 
+              jumlah_bukti = EXCLUDED.jumlah_bukti,
+              total_bukti = EXCLUDED.total_bukti,
+              penilaian = EXCLUDED.penilaian
+          `;
+        }
+      }
+
+      // 5. Upsert rekap_penilaian_staff (average per staff)
+      const staffAverages = await sql`
+        SELECT id_staff, AVG(penilaian) as avg_penilaian
+        FROM rekap_penilaian_aspek
+        WHERE id_periode = ${idPeriode}
+        GROUP BY id_staff
+      `;
+      for (const row of staffAverages) {
+        const avgPenilaian = Math.round(row.avg_penilaian);
+        await sql`
+          INSERT INTO rekap_penilaian_staff (id_periode, id_staff, penilaian)
+          VALUES (${idPeriode}, ${row.id_staff}, ${avgPenilaian})
+          ON CONFLICT (id_periode, id_staff)
+          DO UPDATE SET penilaian = EXCLUDED.penilaian
+        `;
+      }
+
+      // 6. Upsert rekap_penilaian_kategori (average per category)
+      const kategoriAverages = await sql`
+        SELECT s.id_kategori_staff, AVG(r.penilaian) as avg_penilaian
+        FROM rekap_penilaian_staff r
+        JOIN staff s ON r.id_staff = s.id_staff
+        WHERE r.id_periode = ${idPeriode} AND s.id_kategori_staff IS NOT NULL
+        GROUP BY s.id_kategori_staff
+      `;
+      for (const row of kategoriAverages) {
+        const avgPenilaian = Math.round(row.avg_penilaian);
+        await sql`
+          INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian)
+          VALUES (${idPeriode}, ${row.id_kategori_staff}, ${avgPenilaian})
+          ON CONFLICT (id_periode, id_kategori_staff)
+          DO UPDATE SET penilaian = EXCLUDED.penilaian
+        `;
+      }
+
+      // 7. Upsert rekap_penilaian_total
+      const totalAverage = await sql`
+        SELECT AVG(penilaian) as avg_penilaian
+        FROM rekap_penilaian_kategori
+        WHERE id_periode = ${idPeriode}
+      `;
+      if (totalAverage.length > 0 && totalAverage[0].avg_penilaian !== null) {
+        const avgTotal = Math.round(totalAverage[0].avg_penilaian);
+        await sql`
+          INSERT INTO rekap_penilaian_total (id_periode, penilaian)
+          VALUES (${idPeriode}, ${avgTotal})
+          ON CONFLICT (id_periode)
+          DO UPDATE SET penilaian = EXCLUDED.penilaian
+        `;
+      }
+    });
+
+    revalidatePath('/dashboard/periode');
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error in hitungNilaiPeriode:', err);
+    throw new Error('Failed to calculate period scores.');
   }
 }
 

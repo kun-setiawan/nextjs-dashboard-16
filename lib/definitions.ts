@@ -32,3 +32,17 @@ export type UserRole = {
   user_id: string;
   role: string;
 };
+
+export type Periode = {
+  id_periode: string;
+  tahun_periode: string;
+  semester: string;
+  tanggal_mulai: string | Date;
+  tanggal_selesai: string | Date;
+  created_by?: string;
+  created_at?: string | Date;
+  updated_by?: string;
+  updated_at?: string | Date;
+  jumlah_hari_kerja: number;
+  status: 'Aktif' | 'Tidak Aktif';
+};

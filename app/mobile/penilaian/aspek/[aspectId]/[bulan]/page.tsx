@@ -3,16 +3,33 @@ import {
   fetchStaffByUserId,
   fetchAssessmentAspectsByStaff,
   fetchPeriodeAktif,
-  fetchEvidencesCountByMonth,
+  fetchEvidencesByMonth,
 } from "@/lib/action"
-import { MobileEvidenceDetail } from "@/components/mobile/evidence-detail"
+import { MobileEvidenceGallery } from "@/components/mobile/evidence-gallery"
 
-export default async function MobileEvidenceDetailPage({
+const MONTH_NAMES: Record<number, string> = {
+  1: "Januari",
+  2: "Februari",
+  3: "Maret",
+  4: "April",
+  5: "Mei",
+  6: "Juni",
+  7: "Juli",
+  8: "Agustus",
+  9: "September",
+  10: "Oktober",
+  11: "November",
+  12: "Desember",
+}
+
+export default async function MobileEvidenceGalleryPage({
   params,
 }: {
-  params: Promise<{ aspectId: string }>
+  params: Promise<{ aspectId: string; bulan: string }>
 }) {
-  const { aspectId } = await params
+  const { aspectId, bulan } = await params
+  const bulanNum = parseInt(bulan, 10)
+
   const session = await auth()
 
   if (!session?.user) {
@@ -34,7 +51,6 @@ export default async function MobileEvidenceDetailPage({
     )
   }
 
-  // Fetch all aspects for this category, then find the requested one
   const aspects = await fetchAssessmentAspectsByStaff(staff.id_kategori_staff, staff.id_staff)
   const aspect = aspects.find((a) => a.id === aspectId)
 
@@ -47,14 +63,17 @@ export default async function MobileEvidenceDetailPage({
   }
 
   const periodeAktif = await fetchPeriodeAktif()
-  const evidenceCountByMonth = await fetchEvidencesCountByMonth(staff.id_staff, aspectId)
+  const evidences = await fetchEvidencesByMonth(staff.id_staff, aspectId, bulanNum)
+  const bulanName = MONTH_NAMES[bulanNum] ?? `Bulan ${bulanNum}`
 
   return (
-    <MobileEvidenceDetail
+    <MobileEvidenceGallery
       staff={staff}
       aspect={aspect}
       periodeAktif={periodeAktif}
-      evidenceCountByMonth={evidenceCountByMonth}
+      evidences={evidences}
+      bulanName={bulanName}
+      bulanNum={bulanNum}
     />
   )
 }
