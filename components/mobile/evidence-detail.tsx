@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select"
 import Link from "next/link"
 import { toast } from "sonner"
+import imageCompression from "browser-image-compression"
 import type { AssessmentAspect } from "@/lib/action"
 import type { Staff, Periode } from "@/lib/definitions"
 
@@ -122,8 +123,18 @@ export function MobileEvidenceDetail({
 
     setIsUploading(true)
     try {
+      // Compress image before upload
+      let fileToUpload: File = newEvidence.file
+      if (newEvidence.type === "image" && newEvidence.file.type.startsWith("image/")) {
+        fileToUpload = await imageCompression(newEvidence.file, {
+          maxSizeMB: 0.3,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+        })
+      }
+
       const formData = new FormData()
-      formData.append("file", newEvidence.file)
+      formData.append("file", fileToUpload)
       formData.append("personnelId", staff.id_staff)
       formData.append("aspectId", aspect.id)
       formData.append("namaBukti", newEvidence.name)

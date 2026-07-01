@@ -13,6 +13,7 @@ import Link from "next/link"
 import type { Staff } from "@/lib/definitions"
 import { toast } from "sonner"
 import { updateStaffName, updateStaffFotoProfil } from "@/lib/action"
+import imageCompression from "browser-image-compression";
 
 interface MobileProfileEditProps {
   staff: Staff
@@ -61,11 +62,20 @@ export function MobileProfileEdit({ staff }: MobileProfileEditProps) {
     }
     reader.readAsDataURL(file)
 
+    let fileToUpload: File = file
+    if (file.type.startsWith("image/")) {
+      fileToUpload = await imageCompression(file, {
+        maxSizeMB: 0.3,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      })
+    }
+
     // Upload
     setIsUploadingPhoto(true)
     try {
       const formData = new FormData()
-      formData.append("file", file)
+      formData.append("file", fileToUpload)
       formData.append("staffId", staff.id_staff)
 
       const response = await fetch("/api/upload-profile", {
@@ -130,7 +140,7 @@ export function MobileProfileEdit({ staff }: MobileProfileEditProps) {
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <Link
-            href={`/mobile/penilaian/${staff.user_id}`}
+            href={`/mobile/penilaian`}
             className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors"
           >
             <ArrowLeft className="h-5 w-5 text-foreground" />
