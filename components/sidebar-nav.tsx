@@ -4,13 +4,14 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Users, UserCog, CalendarDays } from "lucide-react"
+import {LayoutDashboard, Users, CalendarDays, FileCheck, QrCode} from "lucide-react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Users, label: "Penilaian Kinerja", href: "/dashboard/kategori" },
-  { icon: UserCog, label: "Daftar Staff", href: "/dashboard/staff" },
+  { icon: FileCheck, label: "Penilaian Kinerja", href: "/dashboard/kategori" },
+  { icon: Users, label: "Daftar Staff", href: "/dashboard/staff" },
   { icon: CalendarDays, label: "Kelola Periode", href: "/dashboard/periode" },
+  { icon: QrCode, label: "Pengaturan Absensi", href: "/dashboard/absensi" },
 ]
 
 export function SidebarNav() {
