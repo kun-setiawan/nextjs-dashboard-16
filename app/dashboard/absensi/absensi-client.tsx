@@ -25,7 +25,7 @@ interface AbsensiClientProps {
 export function AbsensiClient({ initialToken }: AbsensiClientProps) {
   const [token, setToken] = useState(initialToken);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [attendanceUrl, setAttendanceUrl] = useState<string>('');
+  // const [attendanceUrl, setAttendanceUrl] = useState<string>('');
   const [isPending, startTransition] = useTransition();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
@@ -33,11 +33,11 @@ export function AbsensiClient({ initialToken }: AbsensiClientProps) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const origin = window.location.origin;
-      const url = `${origin}/mobile/absensi?code=${token}`;
-      setAttendanceUrl(url);
+      // const url = `${origin}/mobile/absensi?code=${token}`;
+      // setAttendanceUrl(url);
 
       QRCode.toDataURL(
-        url,
+        token,
         {
           width: 320,
           margin: 2,
@@ -150,10 +150,10 @@ export function AbsensiClient({ initialToken }: AbsensiClientProps) {
             </div>
 
             {/* URL Display Info (Print Only / Secondary info) */}
-            {attendanceUrl && (
+            {token && (
               <div className="mt-4 p-2 bg-slate-50 rounded-lg border border-slate-100 w-full flex items-center justify-center gap-2 text-xs text-slate-500 truncate print:hidden">
                 <Link2 className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-                <span className="truncate select-all">{attendanceUrl}</span>
+                <span className="truncate select-all">{token}</span>
               </div>
             )}
           </div>
