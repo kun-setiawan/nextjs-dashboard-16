@@ -19,7 +19,7 @@ export function SidebarNav() {
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-sidebar border-r border-sidebar-border">
-      <div className="p-6 border-b border-sidebar-border">
+      <div className="p-6 border-sidebar-border">
         <Link href="/" className="flex items-center gap-3">
           <div className="p-1">
             <Image

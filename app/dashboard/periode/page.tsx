@@ -13,18 +13,23 @@ export default async function PeriodePage() {
       <SidebarNav />
 
       <div className="flex-1 flex flex-col">
-        <Header 
-          title="Daftar Periode Penilaian" 
-          subtitle="Kelola masa penilaian kinerja dan hitung total rekap kinerja staff" 
+        {/*<Header */}
+        {/*  title="Daftar Periode Penilaian" */}
+        {/*  subtitle="Kelola masa penilaian kinerja dan hitung total rekap kinerja staff" */}
+        {/*/>*/}
+
+        <Header
+            title="Pengaturan Periode"
+            subtitle="Aktifkan periode penilaian dan jalankan kalkulasi rekap nilai untuk semua staff secara berkala."
         />
 
         <main className="flex-1 p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground">Pengaturan Periode</h2>
-              <p className="text-sm text-muted-foreground">Aktifkan periode penilaian dan jalankan kalkulasi rekap nilai untuk semua staff secara berkala.</p>
-            </div>
-          </div>
+          {/*<div className="flex items-center justify-between">*/}
+          {/*  <div>*/}
+          {/*    <h2 className="text-2xl font-bold tracking-tight text-foreground">Pengaturan Periode</h2>*/}
+          {/*    <p className="text-sm text-muted-foreground">Aktifkan periode penilaian dan jalankan kalkulasi rekap nilai untuk semua staff secara berkala.</p>*/}
+          {/*  </div>*/}
+          {/*</div>*/}
 
           <PeriodeTable initialPeriodes={periodes} />
         </main>

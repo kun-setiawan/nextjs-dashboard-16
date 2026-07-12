@@ -27,7 +27,8 @@ export default async function Overview() { // Make component async, remove the p
 
 
   return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="px-6 pt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
             title="Total Personnel"
             value={totalPersonnel}
@@ -61,5 +62,6 @@ export default async function Overview() { // Make component async, remove the p
             trendValue="+5%"
         />
       </div>
+    </div>
   );
 }
