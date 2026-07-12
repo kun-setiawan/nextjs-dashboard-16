@@ -175,6 +175,7 @@ export interface AssessmentAspect {
   indicator: string
   responsible: string
   weight: number
+  tipe: string
   evidences: Evidence[]
 }
 
@@ -186,13 +187,15 @@ export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId:
       indicator: string;
       responsible: string;
       weight: number;
+      tipe: string;
     }[]>`
       SELECT 
         a.id_aspek_penilaian AS id,
         a.nama_aspek         AS name,
         a.indikator          AS indicator,
         a.penanggung_jawab   AS responsible,
-        0                    AS weight
+        0                    AS weight,
+        COALESCE(a.tipe, 'Foto') AS tipe
       FROM aspek_penilaian a
       JOIN aspek_penilaian_kategori_staff ak
         ON a.id_aspek_penilaian = ak.id_aspek_penilaian
@@ -253,6 +256,7 @@ export interface EvidenceWithMonth {
   previewUrl?: string
   id_aspek_penilaian: string
   bulan: number
+  created_at?: string
 }
 
 export async function fetchEvidencesByMonth(
@@ -269,7 +273,8 @@ export async function fetchEvidencesByMonth(
         keterangan                  AS description,
         file_bukti                  AS url,
         id_aspek_penilaian,
-        EXTRACT(MONTH FROM created_at)::int AS bulan
+        EXTRACT(MONTH FROM created_at)::int AS bulan,
+        created_at::text            AS created_at
       FROM bukti_penilaian
       WHERE id_staff = ${staffId}
         AND id_aspek_penilaian = ${aspectId}

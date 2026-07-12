@@ -10,6 +10,8 @@ import {
   FileSpreadsheet,
   Upload,
   Loader2,
+  QrCode,
+  ScanLine,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +37,7 @@ import { toast } from "sonner"
 import imageCompression from "browser-image-compression"
 import type { AssessmentAspect } from "@/lib/action"
 import type { Staff, Periode } from "@/lib/definitions"
+import { QrScannerDialog } from "@/components/mobile/qr-scanner-dialog"
 
 interface MobileEvidenceDetailProps {
   staff: Staff
@@ -70,7 +73,12 @@ export function MobileEvidenceDetail({
   const semester = periodeAktif?.semester ?? "Ganjil"
   const months = semester === "Genap" ? MONTHS_GENAP : MONTHS_GANJIL
 
-  // ── Upload form state ──────────────────────────────────────────────────────
+  const isAbsensiType = aspect.tipe === "Absensi"
+
+  // ── QR Scanner state (Absensi type) ───────────────────────────────────────
+  const [showQrScanner, setShowQrScanner] = useState(false)
+
+  // ── Upload form state (Foto type) ──────────────────────────────────────────
   const [showAddForm, setShowAddForm] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [filePreview, setFilePreview] = useState<string | null>(null)
@@ -179,7 +187,7 @@ export function MobileEvidenceDetail({
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold text-foreground truncate">{aspect.name}</h1>
             <p className="text-xs text-muted-foreground truncate">
-              Bukti Penilaian - {staff.nama_staff}
+              {isAbsensiType ? "Absensi" : "Bukti Penilaian"} - {staff.nama_staff}
             </p>
           </div>
         </div>
@@ -197,15 +205,32 @@ export function MobileEvidenceDetail({
               <Badge variant="secondary" className="text-xs">
                 Bobot: {aspect.weight}%
               </Badge>
+              {isAbsensiType && (
+                <Badge className="text-xs bg-blue-500/15 text-blue-600 border-blue-500/20 border">
+                  <ScanLine className="h-3 w-3 mr-1" />
+                  Absensi
+                </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Tambah Bukti Button */}
-        <Button onClick={() => setShowAddForm(true)} className="w-full" size="lg">
-          <Plus className="h-5 w-5 mr-2" />
-          Tambah Bukti Penilaian
-        </Button>
+        {/* Action Button — conditional based on tipe aspek */}
+        {isAbsensiType ? (
+          <Button
+            onClick={() => setShowQrScanner(true)}
+            className="w-full"
+            size="lg"
+          >
+            <QrCode className="h-5 w-5 mr-2" />
+            Scan Absensi
+          </Button>
+        ) : (
+          <Button onClick={() => setShowAddForm(true)} className="w-full" size="lg">
+            <Plus className="h-5 w-5 mr-2" />
+            Tambah Bukti Penilaian
+          </Button>
+        )}
 
         {/* Period Info */}
         {periodeAktif ? (
@@ -226,7 +251,9 @@ export function MobileEvidenceDetail({
 
         {/* Month Cards */}
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground px-1">Pilih Bulan</h3>
+          <h3 className="text-sm font-semibold text-foreground px-1">
+            {isAbsensiType ? "Rekap Absensi" : "Pilih Bulan"}
+          </h3>
           <div className="grid grid-cols-2 gap-3">
             {months.map(({ num, name }) => {
               const count = evidenceCountByMonth[num] ?? 0
@@ -242,8 +269,14 @@ export function MobileEvidenceDetail({
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <ImageIcon className="h-3.5 w-3.5" />
-                        <span className="text-xs">{count} bukti</span>
+                        {isAbsensiType ? (
+                          <QrCode className="h-3.5 w-3.5" />
+                        ) : (
+                          <ImageIcon className="h-3.5 w-3.5" />
+                        )}
+                        <span className="text-xs">
+                          {count} {isAbsensiType ? "absensi" : "bukti"}
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -254,7 +287,15 @@ export function MobileEvidenceDetail({
         </div>
       </main>
 
-      {/* Add Evidence Dialog */}
+      {/* QR Scanner Dialog (Absensi type) */}
+      <QrScannerDialog
+        open={showQrScanner}
+        onOpenChange={setShowQrScanner}
+        staffId={staff.id_staff}
+        aspectId={aspect.id}
+      />
+
+      {/* Add Evidence Dialog (Foto type) */}
       <Dialog open={showAddForm} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-md mx-4 rounded-lg">
           <DialogHeader>

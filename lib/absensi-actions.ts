@@ -157,3 +157,122 @@ export async function submitAttendance(staffId: string, token: string) {
     };
   }
 }
+
+// ─── New: Aspect-specific attendance (for Absensi-type aspek penilaian) ───────
+
+/**
+ * Check if the staff has already submitted attendance (tipe_bukti='scan')
+ * today for the given aspectId.
+ */
+export async function checkTodayAttendanceByAspect(staffId: string, aspectId: string) {
+  try {
+    const rows = await sql<{ id_bukti_penilaian: string }[]>`
+      SELECT id_bukti_penilaian 
+      FROM bukti_penilaian 
+      WHERE id_staff         = ${staffId} 
+        AND id_aspek_penilaian = ${aspectId}
+        AND tipe_bukti       = 'scan'
+        AND created_at::date = CURRENT_DATE
+      LIMIT 1
+    `;
+    return rows.length > 0;
+  } catch (err) {
+    console.error('Database Error in checkTodayAttendanceByAspect:', err);
+    return false;
+  }
+}
+
+/**
+ * Submit attendance scan for a specific aspek penilaian.
+ * - Validates QR token against pengaturan_absensi.qr_code_token
+ * - If already attended today and forceResubmit=false → returns alreadyAttended: true
+ * - Inserts bukti_penilaian with tipe_bukti='scan', no nama_bukti/keterangan/file_bukti
+ * - Recalculates rekap_penilaian_aspek, rekap_penilaian_kategori, rekap_penilaian_staff, rekap_penilaian_total
+ */
+export async function submitAttendanceByAspect(
+  staffId: string,
+  aspectId: string,
+  token: string,
+  forceResubmit = false,
+): Promise<{ success: boolean; alreadyAttended?: boolean; message?: string; error?: string }> {
+  try {
+    // 1. Validate QR token
+    const currentToken = await fetchCurrentQRCode();
+    if (token !== currentToken) {
+      return {
+        success: false,
+        error: 'QR Code tidak valid atau sudah kedaluwarsa. Silakan scan ulang QR Code terbaru.',
+      };
+    }
+
+    // 2. Fetch active period
+    const periodes = await sql<{ id_periode: string }[]>`
+      SELECT id_periode 
+      FROM periode 
+      WHERE status = 'Aktif' 
+      LIMIT 1
+    `;
+    const activePeriode = periodes[0];
+    if (!activePeriode) {
+      return {
+        success: false,
+        error: 'Tidak ada periode penilaian aktif saat ini. Hubungi administrator.',
+      };
+    }
+
+    // 3. Check if already attended today for this specific aspect
+    const alreadyAttended = await checkTodayAttendanceByAspect(staffId, aspectId);
+    if (alreadyAttended && !forceResubmit) {
+      return {
+        success: false,
+        alreadyAttended: true,
+        message: 'Anda sudah melakukan absensi hari ini.',
+      };
+    }
+
+    // 4. Fetch staff user_id for created_by
+    const staffRows = await sql<{ user_id: string }[]>`
+      SELECT user_id 
+      FROM staff 
+      WHERE id_staff = ${staffId} 
+      LIMIT 1
+    `;
+    const createdBy = staffRows[0]?.user_id || staffId;
+
+    // 5. Insert bukti_penilaian — tipe_bukti='scan', no nama_bukti/keterangan/file_bukti
+    const idBukti = crypto.randomUUID();
+    await sql`
+      INSERT INTO bukti_penilaian (
+        id_bukti_penilaian,
+        id_periode,
+        id_staff,
+        id_aspek_penilaian,
+        tipe_bukti,
+        created_by,
+        created_at
+      ) VALUES (
+        ${idBukti},
+        ${activePeriode.id_periode},
+        ${staffId},
+        ${aspectId},
+        'scan',
+        ${createdBy},
+        NOW()
+      )
+    `;
+
+    // 6. Recalculate rekap for aspek, kategori, staff, total
+    await hitungNilaiPeriode(activePeriode.id_periode);
+
+    return {
+      success: true,
+      message: 'Absensi berhasil terekam!',
+    };
+  } catch (err) {
+    console.error('Error in submitAttendanceByAspect action:', err);
+    return {
+      success: false,
+      error: 'Terjadi kesalahan sistem saat memproses absensi Anda.',
+    };
+  }
+}

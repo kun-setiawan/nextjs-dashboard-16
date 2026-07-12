@@ -25,7 +25,15 @@ const config: Config = {
           transform: 'translateX(100%)',
         },
       },
+      'scan-line': {
+        '0%, 100%': { top: '4px' },
+        '50%': { top: 'calc(100% - 4px)' },
+      },
     },
-  }
+    animation: {
+      'scan-line': 'scan-line 2s ease-in-out infinite',
+    },
+  },
+
 };
 export default config;
