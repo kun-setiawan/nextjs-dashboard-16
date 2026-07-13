@@ -161,6 +161,56 @@ export async function fetchDashboardKategoriStaff() {
   return kategori_staffs;
 }
 
+export async function fetchDashboardOverviewStats() {
+  const periodes = await sql<{ id_periode: string }[]>`
+    SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+  `;
+  const idPeriode = periodes[0]?.id_periode ?? null;
+
+  const staffCountResult = await sql`SELECT COUNT(*)::int as count FROM staff`;
+  const totalPersonnel = staffCountResult[0]?.count ?? 0;
+
+  const kategoriCountResult = await sql`SELECT COUNT(*)::int as count FROM kategori_staff`;
+  const totalKategori = kategoriCountResult[0]?.count ?? 0;
+
+  let rataRataKinerja = 0;
+  let tugasSelesaiPersen = 0;
+  let jumlahBukti = 0;
+  let totalBukti = 0;
+  let sangatBaikCount = 0;
+
+  if (idPeriode) {
+    const totalRekap = await sql`
+      SELECT penilaian, kebijakan, jumlah_bukti, total_bukti 
+      FROM rekap_penilaian_total 
+      WHERE id_periode = ${idPeriode}
+    `;
+    if (totalRekap.length > 0) {
+      rataRataKinerja = totalRekap[0].penilaian ?? 0;
+      tugasSelesaiPersen = totalRekap[0].kebijakan ?? 0;
+      jumlahBukti = totalRekap[0].jumlah_bukti ?? 0;
+      totalBukti = totalRekap[0].total_bukti ?? 0;
+    }
+
+    const excellentStaff = await sql`
+      SELECT COUNT(*)::int as count
+      FROM rekap_penilaian_staff
+      WHERE id_periode = ${idPeriode} AND kebijakan > 85
+    `;
+    sangatBaikCount = excellentStaff[0]?.count ?? 0;
+  }
+
+  return {
+    totalPersonnel,
+    totalKategori,
+    rataRataKinerja,
+    sangatBaikCount,
+    tugasSelesaiPersen,
+    jumlahBukti,
+    totalBukti
+  };
+}
+
 export async function updateStaffName(idStaff: string, namaStaff: string) {
   try {
     await sql`
