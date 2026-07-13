@@ -96,16 +96,65 @@ export async function fetchKategoriStaff() {
 }
 
 export async function fetchDashboardKategoriStaff() {
-  var kategori_staffs = await fetchKategoriStaff();
-  var staffs = await fetchStaff();
+  // 1. Get active periode
+  const periodes = await sql<{ id_periode: string }[]>`
+    SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+  `;
+  const idPeriode = periodes[0]?.id_periode ?? null;
+
+  // 2. Fetch all kategori staff
+  const kategori_staffs = await fetchKategoriStaff();
+
+  // 3. Fetch all staff
+  const staffs = await fetchStaff();
+
+  // 4. Fetch rekap per kategori (for the active periode)
+  const rekapKategoriRows = idPeriode
+    ? await sql<{ id_kategori_staff: string; penilaian: number }[]>`
+        SELECT id_kategori_staff, penilaian
+        FROM rekap_penilaian_kategori
+        WHERE id_periode = ${idPeriode}
+      `
+    : [];
+
+  // 5. Fetch rekap per staff (for the active periode)
+  const rekapStaffRows = idPeriode
+    ? await sql<{ id_staff: string; penilaian: number; jumlah_bukti: number; total_bukti: number }[]>`
+        SELECT id_staff, penilaian, jumlah_bukti, total_bukti
+        FROM rekap_penilaian_staff
+        WHERE id_periode = ${idPeriode}
+      `
+    : [];
+
+  // Build lookup maps
+  const kategoriRekapMap = new Map(rekapKategoriRows.map(r => [r.id_kategori_staff, r.penilaian]));
+  const staffRekapMap    = new Map(rekapStaffRows.map(r => [
+    r.id_staff, 
+    { penilaian: r.penilaian, jumlah_bukti: r.jumlah_bukti ?? 0, total_bukti: r.total_bukti ?? 0 }
+  ]));
+
+  // Helper: derive status label from score
+  function scoreToStatus(score: number): Staff['rekap_status'] {
+    if (score >= 85) return 'excellent';
+    if (score >= 70) return 'good';
+    if (score >= 50) return 'average';
+    return 'needs-improvement';
+  }
+
+  // 6. Assemble result
   for (const kategori_staff_each of kategori_staffs) {
-    kategori_staff_each.staffs = staffs.filter(staff => staff.id_kategori_staff === kategori_staff_each.id_kategori_staff);
-    kategori_staff_each.rekap_avg_score = 80;
+    kategori_staff_each.staffs = staffs.filter(
+      s => s.id_kategori_staff === kategori_staff_each.id_kategori_staff
+    );
+    const kategoriScore = kategoriRekapMap.get(kategori_staff_each.id_kategori_staff) ?? 0;
+    kategori_staff_each.rekap_avg_score = kategoriScore;
+
     for (const staff_each of kategori_staff_each.staffs) {
-      staff_each.rekap_performance_score = 92;
-      staff_each.rekap_status = "excellent";
-      staff_each.rekap_tasks_completed = 48;
-      staff_each.rekap_total_tasks = 50;
+      const staffRekap = staffRekapMap.get(staff_each.id_staff) ?? { penilaian: 0, jumlah_bukti: 0, total_bukti: 0 };
+      staff_each.rekap_performance_score = staffRekap.penilaian;
+      staff_each.rekap_status = scoreToStatus(staffRekap.penilaian);
+      staff_each.rekap_tasks_completed = staffRekap.jumlah_bukti;
+      staff_each.rekap_total_tasks = staffRekap.total_bukti;
     }
   }
 
@@ -502,7 +551,7 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
     // Ambil semua rekap untuk periode aktif, grouped per staff
     const { data: rekapRows, error: rekapFetchError } = await supabaseAdmin
         .from('rekap_penilaian_aspek')
-        .select('id_staff, penilaian, kebijakan')
+        .select('id_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid')
         .eq('id_periode', activePeriodeId)
         .eq('id_staff', idStaff)
         .eq('id_aspek_penilaian', idAspek);
@@ -511,18 +560,21 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
       console.warn('Gagal mengambil rekap_penilaian_aspek untuk rekap_penilaian_staff:', rekapFetchError?.message);
     } else {
       // Hitung rata-rata penilaian per staff
-      const staffPenilaianMap = new Map<string, { totalPenilaian: number; totalKebijakan: number; count: number }>();
+      const staffPenilaianMap = new Map<string, { totalPenilaian: number; totalKebijakan: number; count: number; jumlahBukti: number; totalBukti: number; jumlahBuktiValid: number }>();
       for (const row of rekapRows) {
-        const existing = staffPenilaianMap.get(row.id_staff) ?? { totalPenilaian: 0, totalKebijakan: 0, count: 0 };
+        const existing = staffPenilaianMap.get(row.id_staff) ?? { totalPenilaian: 0, totalKebijakan: 0, count: 0, jumlahBukti: 0, totalBukti: 0, jumlahBuktiValid: 0 };
         staffPenilaianMap.set(row.id_staff, {
           totalPenilaian: existing.totalPenilaian + (row.penilaian ?? 0),
           totalKebijakan: existing.totalKebijakan + (row.kebijakan ?? 0),
           count: existing.count + 1,
+          jumlahBukti: existing.jumlahBukti + (row.jumlah_bukti ?? 0),
+          totalBukti: existing.totalBukti + (row.total_bukti ?? 0),
+          jumlahBuktiValid: existing.jumlahBuktiValid + (row.jumlah_bukti_valid ?? 0),
         });
       }
 
       // Upsert satu record per staff
-      for (const [staffId, { totalPenilaian, totalKebijakan, count }] of staffPenilaianMap.entries()) {
+      for (const [staffId, { totalPenilaian, totalKebijakan, count, jumlahBukti, totalBukti, jumlahBuktiValid }] of staffPenilaianMap.entries()) {
         const avgPenilaian = count > 0 ? Math.round((totalPenilaian / count) * 100) / 100 : 0;
         const avgKebijakan = count > 0 ? Math.round((totalKebijakan / count) * 100) / 100 : 0;
 
@@ -534,6 +586,9 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
                   id_staff:   staffId,
                   penilaian:  avgPenilaian,
                   kebijakan:  avgKebijakan,
+                  jumlah_bukti: jumlahBukti,
+                  total_bukti: totalBukti,
+                  jumlah_bukti_valid: jumlahBuktiValid,
                 },
                 {
                   onConflict:       'id_periode,id_staff',
@@ -561,7 +616,7 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
     // dari tabel staff melalui relasi id_staff.
     const { data: staffRekapRows, error: staffRekapError } = await supabaseAdmin
         .from('rekap_penilaian_staff')
-        .select('id_staff, penilaian, kebijakan, staff(id_kategori_staff)')
+        .select('id_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid, staff(id_kategori_staff)')
         .eq('id_periode', activePeriodeId)
         .eq('id_staff', idStaff);
 
@@ -572,23 +627,26 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
       );
     } else {
       // Kelompokkan rata-rata penilaian per id_kategori_staff
-      const kategoriMap = new Map<string, { totalPenilaian: number; totalKebijakan: number; count: number }>();
+      const kategoriMap = new Map<string, { totalPenilaian: number; totalKebijakan: number; count: number; jumlahBukti: number; totalBukti: number; jumlahBuktiValid: number }>();
       for (const row of staffRekapRows) {
         const staffRel = (row.staff as unknown) as { id_kategori_staff: string | null } | null;
         const idKategori = staffRel?.id_kategori_staff ?? null;
         if (!idKategori) continue; // lewati staff tanpa kategori
         paramIdKategori = idKategori;
 
-        const existing = kategoriMap.get(idKategori) ?? { totalPenilaian: 0, totalKebijakan: 0, count: 0 };
+        const existing = kategoriMap.get(idKategori) ?? { totalPenilaian: 0, totalKebijakan: 0, count: 0, jumlahBukti: 0, totalBukti: 0, jumlahBuktiValid: 0 };
         kategoriMap.set(idKategori, {
           totalPenilaian: existing.totalPenilaian + (row.penilaian ?? 0),
           totalKebijakan: existing.totalKebijakan + (row.kebijakan ?? 0),
           count: existing.count + 1,
+          jumlahBukti: existing.jumlahBukti + (row.jumlah_bukti ?? 0),
+          totalBukti: existing.totalBukti + (row.total_bukti ?? 0),
+          jumlahBuktiValid: existing.jumlahBuktiValid + (row.jumlah_bukti_valid ?? 0),
         });
       }
 
       // Upsert satu record per kategori
-      for (const [idKategori, { totalPenilaian, totalKebijakan, count }] of kategoriMap.entries()) {
+      for (const [idKategori, { totalPenilaian, totalKebijakan, count, jumlahBukti, totalBukti, jumlahBuktiValid }] of kategoriMap.entries()) {
         const avgPenilaian = count > 0 ? Math.round((totalPenilaian / count) * 100) / 100 : 0;
         const avgKebijakan = count > 0 ? Math.round((totalKebijakan / count) * 100) / 100 : 0;
 
@@ -600,6 +658,9 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
                   id_kategori_staff: idKategori,
                   penilaian:         avgPenilaian,
                   kebijakan:         avgKebijakan,
+                  jumlah_bukti:      jumlahBukti,
+                  total_bukti:       totalBukti,
+                  jumlah_bukti_valid: jumlahBuktiValid,
                 },
                 {
                   onConflict:       'id_periode,id_kategori_staff',
@@ -624,7 +685,7 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
   if (activePeriodeId) {
     const { data: kategoriRows, error: kategoriRowsError } = await supabaseAdmin
         .from('rekap_penilaian_kategori')
-        .select('penilaian, kebijakan')
+        .select('penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid')
         .eq('id_periode', activePeriodeId)
         .eq('id_kategori_staff', paramIdKategori);
 
@@ -636,6 +697,10 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
     } else if (kategoriRows.length > 0) {
       const totalSum = kategoriRows.reduce((sum, r) => sum + (r.penilaian ?? 0), 0);
       const totalSumKebijakan = kategoriRows.reduce((sum, r) => sum + (r.kebijakan ?? 0), 0);
+      const sumJumlahBukti = kategoriRows.reduce((sum, r) => sum + (r.jumlah_bukti ?? 0), 0);
+      const sumTotalBukti = kategoriRows.reduce((sum, r) => sum + (r.total_bukti ?? 0), 0);
+      const sumJumlahBuktiValid = kategoriRows.reduce((sum, r) => sum + (r.jumlah_bukti_valid ?? 0), 0);
+      
       const avgTotal = Math.round((totalSum / kategoriRows.length) * 100) / 100;
       const avgTotalKebijakan = Math.round((totalSumKebijakan / kategoriRows.length) * 100) / 100;
 
@@ -646,6 +711,9 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
                 id_periode: activePeriodeId,
                 penilaian:  avgTotal,
                 kebijakan:  avgTotalKebijakan,
+                jumlah_bukti: sumJumlahBukti,
+                total_bukti: sumTotalBukti,
+                jumlah_bukti_valid: sumJumlahBuktiValid,
               },
               {
                 onConflict:       'id_periode',
@@ -744,7 +812,13 @@ export async function hitungNilaiPeriode(idPeriode: string) {
 
       // 5. Upsert rekap_penilaian_staff (average per staff)
       const staffAverages = await sql`
-        SELECT id_staff, AVG(penilaian) as avg_penilaian, AVG(kebijakan) as avg_kebijakan
+        SELECT 
+          id_staff, 
+          AVG(penilaian) as avg_penilaian, 
+          AVG(kebijakan) as avg_kebijakan,
+          SUM(jumlah_bukti) as sum_jumlah_bukti,
+          SUM(total_bukti) as sum_total_bukti,
+          SUM(jumlah_bukti_valid) as sum_jumlah_bukti_valid
         FROM rekap_penilaian_aspek
         WHERE id_periode = ${idPeriode}
         GROUP BY id_staff
@@ -752,19 +826,31 @@ export async function hitungNilaiPeriode(idPeriode: string) {
       for (const row of staffAverages) {
         const avgPenilaian = Math.round((row.avg_penilaian as number) * 100) / 100;
         const avgKebijakan = Math.round((row.avg_kebijakan as number) * 100) / 100;
+        const sumJumlahBukti = Number(row.sum_jumlah_bukti);
+        const sumTotalBukti = Number(row.sum_total_bukti);
+        const sumJumlahBuktiValid = Number(row.sum_jumlah_bukti_valid);
         await sql`
-          INSERT INTO rekap_penilaian_staff (id_periode, id_staff, penilaian, kebijakan)
-          VALUES (${idPeriode}, ${row.id_staff}, ${avgPenilaian}, ${avgKebijakan})
+          INSERT INTO rekap_penilaian_staff (id_periode, id_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
+          VALUES (${idPeriode}, ${row.id_staff}, ${avgPenilaian}, ${avgKebijakan}, ${sumJumlahBukti}, ${sumTotalBukti}, ${sumJumlahBuktiValid})
           ON CONFLICT (id_periode, id_staff)
           DO UPDATE SET 
             penilaian = EXCLUDED.penilaian,
-            kebijakan = EXCLUDED.kebijakan
+            kebijakan = EXCLUDED.kebijakan,
+            jumlah_bukti = EXCLUDED.jumlah_bukti,
+            total_bukti = EXCLUDED.total_bukti,
+            jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
         `;
       }
 
       // 6. Upsert rekap_penilaian_kategori (average per category)
       const kategoriAverages = await sql`
-        SELECT s.id_kategori_staff, AVG(r.penilaian) as avg_penilaian, AVG(r.kebijakan) as avg_kebijakan
+        SELECT 
+          s.id_kategori_staff, 
+          AVG(r.penilaian) as avg_penilaian, 
+          AVG(r.kebijakan) as avg_kebijakan,
+          SUM(r.jumlah_bukti) as sum_jumlah_bukti,
+          SUM(r.total_bukti) as sum_total_bukti,
+          SUM(r.jumlah_bukti_valid) as sum_jumlah_bukti_valid
         FROM rekap_penilaian_staff r
         JOIN staff s ON r.id_staff = s.id_staff
         WHERE r.id_periode = ${idPeriode} AND s.id_kategori_staff IS NOT NULL
@@ -773,32 +859,49 @@ export async function hitungNilaiPeriode(idPeriode: string) {
       for (const row of kategoriAverages) {
         const avgPenilaian = Math.round((row.avg_penilaian as number) * 100) / 100;
         const avgKebijakan = Math.round((row.avg_kebijakan as number) * 100) / 100;
+        const sumJumlahBukti = Number(row.sum_jumlah_bukti);
+        const sumTotalBukti = Number(row.sum_total_bukti);
+        const sumJumlahBuktiValid = Number(row.sum_jumlah_bukti_valid);
         await sql`
-          INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian, kebijakan)
-          VALUES (${idPeriode}, ${row.id_kategori_staff}, ${avgPenilaian}, ${avgKebijakan})
+          INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
+          VALUES (${idPeriode}, ${row.id_kategori_staff}, ${avgPenilaian}, ${avgKebijakan}, ${sumJumlahBukti}, ${sumTotalBukti}, ${sumJumlahBuktiValid})
           ON CONFLICT (id_periode, id_kategori_staff)
           DO UPDATE SET 
             penilaian = EXCLUDED.penilaian,
-            kebijakan = EXCLUDED.kebijakan
+            kebijakan = EXCLUDED.kebijakan,
+            jumlah_bukti = EXCLUDED.jumlah_bukti,
+            total_bukti = EXCLUDED.total_bukti,
+            jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
         `;
       }
 
       // 7. Upsert rekap_penilaian_total
       const totalAverage = await sql`
-        SELECT AVG(penilaian) as avg_penilaian, AVG(kebijakan) as avg_kebijakan
+        SELECT 
+          AVG(penilaian) as avg_penilaian, 
+          AVG(kebijakan) as avg_kebijakan,
+          SUM(jumlah_bukti) as sum_jumlah_bukti,
+          SUM(total_bukti) as sum_total_bukti,
+          SUM(jumlah_bukti_valid) as sum_jumlah_bukti_valid
         FROM rekap_penilaian_kategori
         WHERE id_periode = ${idPeriode}
       `;
       if (totalAverage.length > 0 && totalAverage[0].avg_penilaian !== null) {
         const avgTotal = Math.round((totalAverage[0].avg_penilaian as number) * 100) / 100;
         const avgTotalKebijakan = Math.round((totalAverage[0].avg_kebijakan as number) * 100) / 100;
+        const sumJumlahBukti = Number(totalAverage[0].sum_jumlah_bukti);
+        const sumTotalBukti = Number(totalAverage[0].sum_total_bukti);
+        const sumJumlahBuktiValid = Number(totalAverage[0].sum_jumlah_bukti_valid);
         await sql`
-          INSERT INTO rekap_penilaian_total (id_periode, penilaian, kebijakan)
-          VALUES (${idPeriode}, ${avgTotal}, ${avgTotalKebijakan})
+          INSERT INTO rekap_penilaian_total (id_periode, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
+          VALUES (${idPeriode}, ${avgTotal}, ${avgTotalKebijakan}, ${sumJumlahBukti}, ${sumTotalBukti}, ${sumJumlahBuktiValid})
           ON CONFLICT (id_periode)
           DO UPDATE SET 
             penilaian = EXCLUDED.penilaian,
-            kebijakan = EXCLUDED.kebijakan
+            kebijakan = EXCLUDED.kebijakan,
+            jumlah_bukti = EXCLUDED.jumlah_bukti,
+            total_bukti = EXCLUDED.total_bukti,
+            jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
         `;
       }
     });

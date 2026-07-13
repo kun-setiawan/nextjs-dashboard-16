@@ -97,11 +97,11 @@ export function CategoryCard({ kategori_staff, onSelect }: CategoryCardProps) {
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Rata-rata Kinerja</span>
-          {/*<span className={`text-2xl font-bold ${getScoreColor(category.averageScore)}`}>{category.averageScore}%</span>*/}
-          <span className={`text-2xl font-bold ${getScoreColor(80)}`}>{80}%</span>
+          <span className={`text-2xl font-bold ${getScoreColor(kategori_staff.rekap_avg_score)}`}>
+            {kategori_staff.rekap_avg_score}%
+          </span>
         </div>
-        {/*<Progress value={category.averageScore} className="h-2" />*/}
-        <Progress value={80} className="h-2" />
+        <Progress value={kategori_staff.rekap_avg_score} className="h-2" />
 
         <div className="pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground mb-3">Personnel ({kategori_staff.staffs.length})</p>
@@ -124,11 +124,11 @@ export function CategoryCard({ kategori_staff, onSelect }: CategoryCardProps) {
                     {/*<p className="text-xs text-muted-foreground">{staff.position}</p>*/}
                   </div>
                 </div>
-                {/*<Badge variant="outline" className={getStatusColor(person.status)}>*/}
-                {/*  {person.performanceScore}%*/}
-                {/*</Badge>*/}
-                <Badge variant="outline" className={getStatusColor("good")}>
-                  {70}%
+                <Badge
+                  variant="outline"
+                  className={getStatusColor(staff.rekap_status)}
+                >
+                  {staff.rekap_performance_score}%
                 </Badge>
               </div>
             ))}
