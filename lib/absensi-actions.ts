@@ -248,6 +248,7 @@ export async function submitAttendanceByAspect(
         id_staff,
         id_aspek_penilaian,
         tipe_bukti,
+        validitas,
         created_by,
         created_at
       ) VALUES (
@@ -256,6 +257,7 @@ export async function submitAttendanceByAspect(
         ${staffId},
         ${aspectId},
         'scan',
+        true,                
         ${createdBy},
         NOW()
       )

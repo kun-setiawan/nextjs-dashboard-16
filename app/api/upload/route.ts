@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
         nama_bukti:         namaBukti,
         keterangan:         keterangan,
         tipe_bukti:         tipeBukti,
+        validitas:          true,
         created_by:         createdBy,
       })
       .select('id_bukti_penilaian')
