@@ -134,8 +134,8 @@ export async function fetchDashboardKategoriStaff() {
 
   // 4. Fetch rekap per kategori (for the active periode)
   const rekapKategoriRows = idPeriode
-    ? await sql<{ id_kategori_staff: string; penilaian: number }[]>`
-        SELECT id_kategori_staff, penilaian
+    ? await sql<{ id_kategori_staff: string; kebijakan: number }[]>`
+        SELECT id_kategori_staff, kebijakan
         FROM rekap_penilaian_kategori
         WHERE id_periode = ${idPeriode}
       `
@@ -151,7 +151,7 @@ export async function fetchDashboardKategoriStaff() {
     : [];
 
   // Build lookup maps
-  const kategoriRekapMap = new Map(rekapKategoriRows.map(r => [r.id_kategori_staff, r.penilaian]));
+  const kategoriRekapMap = new Map(rekapKategoriRows.map(r => [r.id_kategori_staff, r.kebijakan]));
   const staffRekapMap    = new Map(rekapStaffRows.map(r => [
     r.id_staff, 
     { kebijakan: r.kebijakan, jumlah_bukti: r.jumlah_bukti ?? 0, total_bukti: r.total_bukti ?? 0 }
@@ -210,10 +210,12 @@ export async function fetchDashboardOverviewStats() {
       WHERE id_periode = ${idPeriode}
     `;
     if (totalRekap.length > 0) {
-      rataRataKinerja = totalRekap[0].penilaian ?? 0;
-      tugasSelesaiPersen = totalRekap[0].kebijakan ?? 0;
+      rataRataKinerja = totalRekap[0].kebijakan ?? 0;
       jumlahBukti = totalRekap[0].jumlah_bukti ?? 0;
       totalBukti = totalRekap[0].total_bukti ?? 0;
+      tugasSelesaiPersen = totalBukti > 0
+          ? Math.min(100, Math.round((jumlahBukti / totalBukti) * 10000) / 100)
+          : 0;
     }
 
     const excellentStaff = await sql`
@@ -782,13 +784,22 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
 
   let paramIdKategori = null;
   if (activePeriodeId) {
-    // Ambil semua record_penilaian_staff untuk periode aktif beserta id_kategori_staff
-    // dari tabel staff melalui relasi id_staff.
-    const { data: staffRekapRows, error: staffRekapError } = await supabaseAdmin
-        .from('rekap_penilaian_staff')
-        .select('id_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid, staff(id_kategori_staff)')
-        .eq('id_periode', activePeriodeId)
-        .eq('id_staff', idStaff);
+    // Cari id_kategori_staff dari idStaff yang sedang diproses
+    const { data: staffData, error: staffError } = await supabaseAdmin
+      .from('staff')
+      .select('id_kategori_staff')
+      .eq('id_staff', idStaff)
+      .single();
+
+    if (!staffError && staffData?.id_kategori_staff) {
+      paramIdKategori = staffData.id_kategori_staff;
+
+      // Ambil semua record_penilaian_staff untuk periode aktif dari semua staff di kategori ini
+      const { data: staffRekapRows, error: staffRekapError } = await supabaseAdmin
+          .from('rekap_penilaian_staff')
+          .select('id_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid, staff!inner(id_kategori_staff)')
+          .eq('id_periode', activePeriodeId)
+          .eq('staff.id_kategori_staff', paramIdKategori);
 
     if (staffRekapError || !staffRekapRows) {
       console.warn(
@@ -796,53 +807,55 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
           staffRekapError?.message,
       );
     } else {
-      // Kelompokkan rata-rata penilaian per id_kategori_staff
-      const kategoriMap = new Map<string, { totalPenilaian: number; totalKebijakan: number; count: number; jumlahBukti: number; totalBukti: number; jumlahBuktiValid: number }>();
-      for (const row of staffRekapRows) {
-        const staffRel = (row.staff as unknown) as { id_kategori_staff: string | null } | null;
-        const idKategori = staffRel?.id_kategori_staff ?? null;
-        if (!idKategori) continue; // lewati staff tanpa kategori
-        paramIdKategori = idKategori;
+        // Kelompokkan rata-rata penilaian per id_kategori_staff
+        const kategoriMap = new Map<string, { totalPenilaian: number; totalKebijakan: number; count: number; jumlahBukti: number; totalBukti: number; jumlahBuktiValid: number }>();
 
-        const existing = kategoriMap.get(idKategori) ?? { totalPenilaian: 0, totalKebijakan: 0, count: 0, jumlahBukti: 0, totalBukti: 0, jumlahBuktiValid: 0 };
-        kategoriMap.set(idKategori, {
-          totalPenilaian: existing.totalPenilaian + (row.penilaian ?? 0),
-          totalKebijakan: existing.totalKebijakan + (row.kebijakan ?? 0),
-          count: existing.count + 1,
-          jumlahBukti: existing.jumlahBukti + (row.jumlah_bukti ?? 0),
-          totalBukti: existing.totalBukti + (row.total_bukti ?? 0),
-          jumlahBuktiValid: existing.jumlahBuktiValid + (row.jumlah_bukti_valid ?? 0),
-        });
-      }
+        for (const row of staffRekapRows) {
+          const staffRel = (row.staff as unknown) as { id_kategori_staff: string | null } | null;
+          const idKategori = staffRel?.id_kategori_staff ?? null;
+          if (!idKategori) continue; // lewati staff tanpa kategori
+          paramIdKategori = idKategori;
 
-      // Upsert satu record per kategori
-      for (const [idKategori, { totalPenilaian, totalKebijakan, count, jumlahBukti, totalBukti, jumlahBuktiValid }] of kategoriMap.entries()) {
-        const avgPenilaian = count > 0 ? Math.round((totalPenilaian / count) * 100) / 100 : 0;
-        const avgKebijakan = count > 0 ? Math.round((totalKebijakan / count) * 100) / 100 : 0;
+          const existing = kategoriMap.get(idKategori) ?? { totalPenilaian: 0, totalKebijakan: 0, count: 0, jumlahBukti: 0, totalBukti: 0, jumlahBuktiValid: 0 };
+          kategoriMap.set(idKategori, {
+            totalPenilaian: existing.totalPenilaian + (row.penilaian ?? 0),
+            totalKebijakan: existing.totalKebijakan + (row.kebijakan ?? 0),
+            count: existing.count + 1,
+            jumlahBukti: existing.jumlahBukti + (row.jumlah_bukti ?? 0),
+            totalBukti: existing.totalBukti + (row.total_bukti ?? 0),
+            jumlahBuktiValid: existing.jumlahBuktiValid + (row.jumlah_bukti_valid ?? 0),
+          });
+        }
 
-        const { error: kategoriUpsertError } = await supabaseAdmin
-            .from('rekap_penilaian_kategori')
-            .upsert(
-                {
-                  id_periode:        activePeriodeId,
-                  id_kategori_staff: idKategori,
-                  penilaian:         avgPenilaian,
-                  kebijakan:         avgKebijakan,
-                  jumlah_bukti:      jumlahBukti,
-                  total_bukti:       totalBukti,
-                  jumlah_bukti_valid: jumlahBuktiValid,
-                },
-                {
-                  onConflict:       'id_periode,id_kategori_staff',
-                  ignoreDuplicates: false,
-                },
+        // Upsert tiap rata-rata kategori yang dihitung ke rekap_penilaian_kategori
+        for (const [idKategori, sum] of kategoriMap.entries()) {
+          const avgPenilaian = sum.count > 0 ? Math.round((sum.totalPenilaian / sum.count) * 100) / 100 : 0;
+          const avgKebijakan = sum.count > 0 ? Math.round((sum.totalKebijakan / sum.count) * 100) / 100 : 0;
+
+          const { error: kategoriUpsertError } = await supabaseAdmin
+              .from('rekap_penilaian_kategori')
+              .upsert(
+                  {
+                    id_periode:        activePeriodeId,
+                    id_kategori_staff: idKategori,
+                    penilaian:         avgPenilaian,
+                    kebijakan:         avgKebijakan,
+                    jumlah_bukti:      sum.jumlahBukti,
+                    total_bukti:       sum.totalBukti,
+                    jumlah_bukti_valid: sum.jumlahBuktiValid,
+                  },
+                  {
+                    onConflict:       'id_periode,id_kategori_staff',
+                    ignoreDuplicates: false,
+                  },
+              );
+
+          if (kategoriUpsertError) {
+            console.warn(
+                `Gagal upsert rekap_penilaian_kategori untuk kategori ${idKategori}:`,
+                kategoriUpsertError.message,
             );
-
-        if (kategoriUpsertError) {
-          console.warn(
-              `Gagal upsert rekap_penilaian_kategori untuk kategori ${idKategori}:`,
-              kategoriUpsertError.message,
-          );
+          }
         }
       }
     }
