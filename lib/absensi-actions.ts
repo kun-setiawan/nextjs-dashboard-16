@@ -239,29 +239,51 @@ export async function submitAttendanceByAspect(
     `;
     const createdBy = staffRows[0]?.user_id || staffId;
 
-    // 5. Insert bukti_penilaian — tipe_bukti='scan', no nama_bukti/keterangan/file_bukti
-    const idBukti = crypto.randomUUID();
-    await sql`
-      INSERT INTO bukti_penilaian (
-        id_bukti_penilaian,
-        id_periode,
-        id_staff,
-        id_aspek_penilaian,
-        tipe_bukti,
-        validitas,
-        created_by,
-        created_at
-      ) VALUES (
-        ${idBukti},
-        ${activePeriode.id_periode},
-        ${staffId},
-        ${aspectId},
-        'scan',
-        true,                
-        ${createdBy},
-        NOW()
-      )
+    // 5. Cek apakah sudah ada bukti scan di hari yang sama
+    const existingRows = await sql<{ id_bukti_penilaian: string }[]>`
+      SELECT id_bukti_penilaian
+      FROM bukti_penilaian
+      WHERE id_staff = ${staffId}
+        AND id_aspek_penilaian = ${aspectId}
+        AND id_periode = ${activePeriode.id_periode}
+        AND tipe_bukti = 'scan'
+        AND DATE(created_at) = CURRENT_DATE
+      LIMIT 1
     `;
+
+    if (existingRows.length > 0) {
+      // Timpa data lama dengan memperbarui waktu scan dan validitas
+      await sql`
+        UPDATE bukti_penilaian
+        SET created_at = NOW(),
+            validitas = true
+        WHERE id_bukti_penilaian = ${existingRows[0].id_bukti_penilaian}
+      `;
+    } else {
+      // Insert baru jika belum ada
+      const idBukti = crypto.randomUUID();
+      await sql`
+        INSERT INTO bukti_penilaian (
+          id_bukti_penilaian,
+          id_periode,
+          id_staff,
+          id_aspek_penilaian,
+          tipe_bukti,
+          validitas,
+          created_by,
+          created_at
+        ) VALUES (
+          ${idBukti},
+          ${activePeriode.id_periode},
+          ${staffId},
+          ${aspectId},
+          'scan',
+          true,                
+          ${createdBy},
+          NOW()
+        )
+      `;
+    }
 
     // 6. Recalculate rekap for aspek, kategori, staff, total
     await hitungNilaiPeriodeSpesifik(activePeriode.id_periode, aspectId, staffId);
