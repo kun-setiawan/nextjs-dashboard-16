@@ -167,17 +167,12 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{aspect.indicator}</p>
 
                         <div className="flex flex-wrap items-center gap-2 mt-3">
-                          {aspect.responsible && (
-                            <Badge variant="outline" className="text-xs bg-secondary/50">
-                              <User className="h-3 w-3 mr-1" />
-                              {aspect.responsible}
-                            </Badge>
-                          )}
-                          {aspect.weight && (
-                            <Badge variant="secondary" className="text-xs">
-                              Bobot: {aspect.weight}%
-                            </Badge>
-                          )}
+                          <Badge variant="secondary" className="text-xs">
+                            Kebijakan: {aspect.kebijakan ?? 0}%
+                          </Badge>
+                          <Badge variant="outline" className="text-xs border-primary text-primary">
+                            Ketuntasan: {aspect.penilaian ?? 0}%
+                          </Badge>
                         </div>
                       </div>
 
@@ -195,19 +190,17 @@ export function MobileAssessmentList({ staff, assessmentAspects }: MobileAssessm
           )}
         </div>
 
-        {/* Total Weight Summary */}
-        {assessmentAspects.some(a => a.weight) && (
-          <Card className="bg-muted/30 border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Bobot</span>
-                <Badge variant="default" className="text-sm">
-                  {assessmentAspects.reduce((acc, a) => acc + (a.weight ?? 0), 0)}%
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Total Kebijakan Summary */}
+        <Card className="bg-muted/30 border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Total Kebijakan</span>
+              <Badge variant="default" className="text-sm">
+                {assessmentAspects.reduce((acc, a) => acc + (a.kebijakan ?? 0), 0)}%
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   )

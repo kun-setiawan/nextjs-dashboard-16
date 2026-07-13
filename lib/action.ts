@@ -31,6 +31,11 @@ export async function fetchUserRole(userId: string) {
 
 export async function fetchStaffByUserId(userId: string) {
   try {
+    const periodes = await sql<{ id_periode: string }[]>`
+      SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+    `;
+    const idPeriode = periodes[0]?.id_periode ?? null;
+
     const staffs = await sql<Staff[]>`
       SELECT
         s.id_staff,
@@ -38,16 +43,35 @@ export async function fetchStaffByUserId(userId: string) {
         s.user_id,
         s.nama_staff,
         s.foto_profil,
-        k.nama_kategori,
-      
-        'good' as status,
-        92 as performance_score,
-        48 as tasks_completed,
-        50 as total_tasks
-      FROM staff s, kategori_staff k
-      WHERE s.id_kategori_staff = k.id_kategori_staff
-        AND s.user_id = ${userId}
+        k.nama_kategori
+      FROM staff s
+      JOIN kategori_staff k ON s.id_kategori_staff = k.id_kategori_staff
+      WHERE s.user_id = ${userId}
     `;
+
+    if (staffs.length === 0) return staffs;
+
+    const rekapStaffRows = idPeriode
+      ? await sql<{ id_staff: string; penilaian: number; jumlah_bukti: number; total_bukti: number }[]>`
+          SELECT id_staff, penilaian, jumlah_bukti, total_bukti
+          FROM rekap_penilaian_staff
+          WHERE id_periode = ${idPeriode} AND id_staff = ${staffs[0].id_staff}
+        `
+      : [];
+
+    const rekap = rekapStaffRows[0];
+    
+    function scoreToStatus(score: number): Staff['status'] {
+      if (score >= 85) return 'excellent';
+      if (score >= 70) return 'good';
+      if (score >= 50) return 'average';
+      return 'needs-improvement';
+    }
+
+    staffs[0].status = rekap ? scoreToStatus(rekap.penilaian) : 'needs-improvement';
+    staffs[0].performance_score = rekap ? rekap.penilaian : 0;
+    staffs[0].tasks_completed = rekap?.jumlah_bukti ?? 0;
+    staffs[0].total_tasks = rekap?.total_bukti ?? 0;
 
     return staffs;
   } catch (err) {
@@ -119,8 +143,8 @@ export async function fetchDashboardKategoriStaff() {
 
   // 5. Fetch rekap per staff (for the active periode)
   const rekapStaffRows = idPeriode
-    ? await sql<{ id_staff: string; penilaian: number; jumlah_bukti: number; total_bukti: number }[]>`
-        SELECT id_staff, penilaian, jumlah_bukti, total_bukti
+    ? await sql<{ id_staff: string; kebijakan: number; jumlah_bukti: number; total_bukti: number }[]>`
+        SELECT id_staff, kebijakan, jumlah_bukti, total_bukti
         FROM rekap_penilaian_staff
         WHERE id_periode = ${idPeriode}
       `
@@ -130,7 +154,7 @@ export async function fetchDashboardKategoriStaff() {
   const kategoriRekapMap = new Map(rekapKategoriRows.map(r => [r.id_kategori_staff, r.penilaian]));
   const staffRekapMap    = new Map(rekapStaffRows.map(r => [
     r.id_staff, 
-    { penilaian: r.penilaian, jumlah_bukti: r.jumlah_bukti ?? 0, total_bukti: r.total_bukti ?? 0 }
+    { kebijakan: r.kebijakan, jumlah_bukti: r.jumlah_bukti ?? 0, total_bukti: r.total_bukti ?? 0 }
   ]));
 
   // Helper: derive status label from score
@@ -150,9 +174,9 @@ export async function fetchDashboardKategoriStaff() {
     kategori_staff_each.rekap_avg_score = kategoriScore;
 
     for (const staff_each of kategori_staff_each.staffs) {
-      const staffRekap = staffRekapMap.get(staff_each.id_staff) ?? { penilaian: 0, jumlah_bukti: 0, total_bukti: 0 };
-      staff_each.rekap_performance_score = staffRekap.penilaian;
-      staff_each.rekap_status = scoreToStatus(staffRekap.penilaian);
+      const staffRekap = staffRekapMap.get(staff_each.id_staff) ?? { kebijakan: 0, jumlah_bukti: 0, total_bukti: 0 };
+      staff_each.rekap_performance_score = staffRekap.kebijakan;
+      staff_each.rekap_status = scoreToStatus(staffRekap.kebijakan);
       staff_each.rekap_tasks_completed = staffRekap.jumlah_bukti;
       staff_each.rekap_total_tasks = staffRekap.total_bukti;
     }
@@ -311,10 +335,17 @@ export interface AssessmentAspect {
   weight: number
   tipe: string
   evidences: Evidence[]
+  kebijakan?: number
+  penilaian?: number
 }
 
 export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId: string): Promise<AssessmentAspect[]> {
   try {
+    const periodes = await sql<{ id_periode: string }[]>`
+      SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+    `;
+    const activePeriodeId = periodes[0]?.id_periode ?? null;
+
     const aspects = await sql<{
       id: string;
       name: string;
@@ -322,6 +353,8 @@ export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId:
       responsible: string;
       weight: number;
       tipe: string;
+      kebijakan: number;
+      penilaian: number;
     }[]>`
       SELECT 
         a.id_aspek_penilaian AS id,
@@ -329,10 +362,16 @@ export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId:
         a.indikator          AS indicator,
         a.penanggung_jawab   AS responsible,
         0                    AS weight,
-        COALESCE(a.tipe, 'Foto') AS tipe
+        COALESCE(a.tipe, 'Foto') AS tipe,
+        COALESCE(r.kebijakan, 0) AS kebijakan,
+        COALESCE(r.penilaian, 0) AS penilaian
       FROM aspek_penilaian a
       JOIN aspek_penilaian_kategori_staff ak
         ON a.id_aspek_penilaian = ak.id_aspek_penilaian
+      LEFT JOIN rekap_penilaian_aspek r
+        ON a.id_aspek_penilaian = r.id_aspek_penilaian
+        AND r.id_staff = ${staffId}
+        AND r.id_periode = ${activePeriodeId}
       WHERE ak.id_kategori_staff = ${categoryId}
       ORDER BY a.nama_aspek ASC
     `;
@@ -391,6 +430,7 @@ export interface EvidenceWithMonth {
   id_aspek_penilaian: string
   bulan: number
   created_at?: string
+  validitas?: boolean
 }
 
 export async function fetchEvidencesByMonth(
@@ -399,6 +439,13 @@ export async function fetchEvidencesByMonth(
   bulan: number
 ): Promise<EvidenceWithMonth[]> {
   try {
+    const periodes = await sql<{ id_periode: string }[]>`
+      SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+    `;
+    const idPeriode = periodes[0]?.id_periode ?? null;
+
+    if (!idPeriode) return [];
+
     const evidences = await sql<EvidenceWithMonth[]>`
       SELECT
         id_bukti_penilaian          AS id,
@@ -408,10 +455,12 @@ export async function fetchEvidencesByMonth(
         file_bukti                  AS url,
         id_aspek_penilaian,
         EXTRACT(MONTH FROM created_at)::int AS bulan,
-        created_at::text            AS created_at
+        created_at::text            AS created_at,
+        validitas
       FROM bukti_penilaian
       WHERE id_staff = ${staffId}
         AND id_aspek_penilaian = ${aspectId}
+        AND id_periode = ${idPeriode}
         AND EXTRACT(MONTH FROM created_at) = ${bulan}
       ORDER BY created_at DESC
     `;
@@ -422,11 +471,48 @@ export async function fetchEvidencesByMonth(
   }
 }
 
+export async function updateEvidencesValiditas(
+  updates: { id: string; validitas: boolean }[],
+  idPeriode: string,
+  idStaff: string,
+  idKategori: string,
+  idAspek: string
+) {
+  try {
+    await sql.begin(async (sql) => {
+      for (const update of updates) {
+        await sql`
+          UPDATE bukti_penilaian
+          SET validitas = ${update.validitas}
+          WHERE id_bukti_penilaian = ${update.id}
+        `;
+
+      }
+    });
+
+    // Recalculate specific period metrics
+    await hitungNilaiPeriodeSpesifik(idPeriode, idAspek, idStaff);
+    revalidatePath(`/dashboard/kategori/${idKategori}/${idStaff}`);
+    
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error updateEvidencesValiditas:', err);
+    throw new Error('Failed to update validitas.');
+  }
+}
+
 export async function fetchEvidencesCountByMonth(
   staffId: string,
   aspectId: string
 ): Promise<Record<number, number>> {
   try {
+    const periodes = await sql<{ id_periode: string }[]>`
+      SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+    `;
+    const idPeriode = periodes[0]?.id_periode ?? null;
+
+    if (!idPeriode) return {};
+
     const rows = await sql<{ bulan: number; jumlah: number }[]>`
       SELECT
         EXTRACT(MONTH FROM created_at)::int AS bulan,
@@ -434,6 +520,7 @@ export async function fetchEvidencesCountByMonth(
       FROM bukti_penilaian
       WHERE id_staff = ${staffId}
         AND id_aspek_penilaian = ${aspectId}
+        AND id_periode = ${idPeriode}
       GROUP BY bulan
     `;
     const result: Record<number, number> = {};
@@ -638,7 +725,6 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
         .select('id_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid')
         .eq('id_periode', activePeriodeId)
         .eq('id_staff', idStaff)
-        .eq('id_aspek_penilaian', idAspek);
 
     if (rekapFetchError || !rekapRows) {
       console.warn('Gagal mengambil rekap_penilaian_aspek untuk rekap_penilaian_staff:', rekapFetchError?.message);
@@ -771,7 +857,6 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
         .from('rekap_penilaian_kategori')
         .select('penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid')
         .eq('id_periode', activePeriodeId)
-        .eq('id_kategori_staff', paramIdKategori);
 
     if (kategoriRowsError || !kategoriRows) {
       console.warn(

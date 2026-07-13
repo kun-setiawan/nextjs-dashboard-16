@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { FileSearch, Award } from "lucide-react"
-import { EvidenceModal } from "@/components/evidence-modal"
+import Link from "next/link"
 
 type AspectData = {
   id: string
@@ -15,9 +15,15 @@ type AspectData = {
   kebijakan: number
 }
 
-export function AssessmentTable({ aspects }: { aspects: AspectData[] }) {
-  const [selectedAspect, setSelectedAspect] = useState<AspectData | null>(null)
-
+export function AssessmentTable({
+  aspects,
+  categoryId,
+  staffId,
+}: {
+  aspects: AspectData[]
+  categoryId: string
+  staffId: string
+}) {
   return (
     <>
       <Card className="bg-card border-border">
@@ -68,12 +74,12 @@ export function AssessmentTable({ aspects }: { aspects: AspectData[] }) {
                       </div>
                     </TableCell>
                     <TableCell className="px-3 py-3 sm:px-4 text-center">
-                      <button
-                        onClick={() => setSelectedAspect(aspect)}
+                      <Link
+                        href={`/dashboard/kategori/${categoryId}/${staffId}/${aspect.id}`}
                         className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-primary/10 hover:text-primary h-8 w-8 sm:h-10 sm:w-10"
                       >
                         <FileSearch className="h-4 w-4 sm:h-5 sm:w-5" />
-                      </button>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -82,13 +88,6 @@ export function AssessmentTable({ aspects }: { aspects: AspectData[] }) {
           </div>
         </CardContent>
       </Card>
-
-      <EvidenceModal
-        open={!!selectedAspect}
-        onClose={() => setSelectedAspect(null)}
-        aspectName={selectedAspect?.name || ""}
-        evidences={[]}
-      />
     </>
   )
 }

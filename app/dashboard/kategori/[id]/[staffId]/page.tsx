@@ -115,7 +115,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
           </Card>
 
           {/* Assessment Table */}
-          <AssessmentTable aspects={aspekList} />
+          <AssessmentTable aspects={aspekList} categoryId={id} staffId={staffId} />
         </main>
       </div>
     </div>

@@ -187,7 +187,7 @@ export function MobileEvidenceDetail({
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold text-foreground truncate">{aspect.name}</h1>
             <p className="text-xs text-muted-foreground truncate">
-              {isAbsensiType ? "Absensi" : "Bukti Penilaian"} - {staff.nama_staff}
+              {aspect.indicator}
             </p>
           </div>
         </div>
@@ -197,13 +197,12 @@ export function MobileEvidenceDetail({
         {/* Aspect Info */}
         <Card className="bg-muted/30 border-border">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">{aspect.indicator}</p>
+            <p className="text-sm text-muted-foreground font-medium">
+              {isAbsensiType ? "Absensi" : "Bukti Penilaian"} - {staff.nama_staff}
+            </p>
             <div className="flex items-center gap-2 mt-3">
-              <Badge variant="outline" className="text-xs">
-                {aspect.responsible}
-              </Badge>
-              <Badge variant="secondary" className="text-xs">
-                Bobot: {aspect.weight}%
+              <Badge variant="outline" className="text-xs border-primary text-primary">
+                Ketuntasan: {aspect.penilaian ?? 0}%
               </Badge>
               {isAbsensiType && (
                 <Badge className="text-xs bg-blue-500/15 text-blue-600 border-blue-500/20 border">
