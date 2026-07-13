@@ -211,6 +211,40 @@ export async function fetchDashboardOverviewStats() {
   };
 }
 
+export async function fetchStaffAssessmentAspects(idStaff: string) {
+  const periodes = await sql<{ id_periode: string }[]>`
+    SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
+  `;
+  const idPeriode = periodes[0]?.id_periode ?? null;
+
+  const aspekList = await sql<{ id_aspek_penilaian: string; nama_aspek: string; indikator: string }[]>`
+    SELECT id_aspek_penilaian, nama_aspek, indikator 
+    FROM aspek_penilaian
+  `;
+
+  const rekapAspek = idPeriode ? await sql<{ id_aspek_penilaian: string; penilaian: number; kebijakan: number }[]>`
+    SELECT id_aspek_penilaian, penilaian, kebijakan
+    FROM rekap_penilaian_aspek
+    WHERE id_periode = ${idPeriode} AND id_staff = ${idStaff}
+  ` : [];
+
+  const rekapMap = new Map(rekapAspek.map(r => [r.id_aspek_penilaian, {
+    penilaian: r.penilaian ?? 0,
+    kebijakan: r.kebijakan ?? 0
+  }]));
+
+  return aspekList.map(a => {
+    const rekap = rekapMap.get(a.id_aspek_penilaian) ?? { penilaian: 0, kebijakan: 0 };
+    return {
+      id: a.id_aspek_penilaian,
+      name: a.nama_aspek,
+      indicator: a.indikator,
+      penilaian: rekap.penilaian,
+      kebijakan: rekap.kebijakan,
+    };
+  });
+}
+
 export async function updateStaffName(idStaff: string, namaStaff: string) {
   try {
     await sql`
