@@ -8,7 +8,7 @@ import {
   UserRole,
   Periode
 } from './definitions';
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require', prepare: false });
 
 
 export async function fetchUserRole(userId: string) {
