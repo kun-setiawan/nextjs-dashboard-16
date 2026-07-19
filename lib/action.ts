@@ -620,7 +620,7 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
   else if (unitWaktu === 'minggu') divisor = 7;
 
   const totalBukti = Math.floor(jumlahHariKerja / divisor) * (aspek.jumlah_kegiatan ?? 1);
-  const maxPerWindow = jumlahHariKerja;
+  const maxPerWindow = aspek.jumlah_kegiatan;
 
   const getWindowKey = (dateVal: Date | string): string => {
     const d = new Date(dateVal);
@@ -796,11 +796,15 @@ export async function hitungNilaiPeriode(idPeriode: string) {
       else if (unitWaktu === 'minggu') divisor = 7;
 
       const totalBukti = Math.floor(jumlahHariKerja / divisor) * (aspek.jumlah_kegiatan ?? 1);
-      const maxPerWindow = jumlahHariKerja;
+      const maxPerWindow = aspek.jumlah_kegiatan;
 
       for (const staff of staffs) {
         const key = `${staff.id_staff}::${aspek.id_aspek_penilaian}`;
         const rows = buktiIndex.get(key) ?? [];
+
+        // if (aspek.id_aspek_penilaian==='609bf781-fb40-41d0-96a0-b6724125a803' && staff.id_staff==='65f564b6-40ea-485d-9f8e-cc09011e8f9a') {
+        //   console.log('check checkpoint 1 ', key, rows)
+        // }
 
         // Cap all bukti
         const windowCountAll = new Map<string, number>();
