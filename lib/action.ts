@@ -667,20 +667,23 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
       ? Math.min(100, Math.round((buktiValidCount / totalBukti) * 10000) / 100)
       : 0;
 
-  // ─── 3. Upsert rekap_penilaian_aspek + fetch staff aggregates in one transaction ───
+  // ─── 3. Delete existing records then insert fresh ──────────────────────────
+
+  // 3a. Delete + insert rekap_penilaian_aspek
+  await sql`
+    DELETE FROM rekap_penilaian_aspek
+    WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff} AND id_aspek_penilaian = ${idAspek}
+  `;
   await sql`
     INSERT INTO rekap_penilaian_aspek (id_periode, id_staff, id_aspek_penilaian, jumlah_bukti, total_bukti, penilaian, jumlah_bukti_valid, kebijakan)
     VALUES (${activePeriodeId}, ${idStaff}, ${idAspek}, ${buktiCount}, ${totalBukti}, ${penilaian}, ${buktiValidCount}, ${kebijakan})
-    ON CONFLICT (id_periode, id_staff, id_aspek_penilaian)
-    DO UPDATE SET
-      jumlah_bukti = EXCLUDED.jumlah_bukti,
-      total_bukti = EXCLUDED.total_bukti,
-      penilaian = EXCLUDED.penilaian,
-      jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid,
-      kebijakan = EXCLUDED.kebijakan
   `;
 
-  // ─── 4. Upsert rekap_penilaian_staff (aggregate from rekap_penilaian_aspek) ───
+  // ─── 4. Delete + insert rekap_penilaian_staff (aggregate from rekap_penilaian_aspek) ───
+  await sql`
+    DELETE FROM rekap_penilaian_staff
+    WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff}
+  `;
   await sql`
     INSERT INTO rekap_penilaian_staff (id_periode, id_staff, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
     SELECT
@@ -694,18 +697,14 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
       SUM(jumlah_bukti_valid)::int
     FROM rekap_penilaian_aspek
     WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff}
-    ON CONFLICT (id_periode, id_staff)
-    DO UPDATE SET
-      id_kategori_staff = EXCLUDED.id_kategori_staff,
-      penilaian = EXCLUDED.penilaian,
-      kebijakan = EXCLUDED.kebijakan,
-      jumlah_bukti = EXCLUDED.jumlah_bukti,
-      total_bukti = EXCLUDED.total_bukti,
-      jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
   `;
 
-  // ─── 5. Upsert rekap_penilaian_kategori (aggregate from rekap_penilaian_staff) ───
+  // ─── 5. Delete + insert rekap_penilaian_kategori (aggregate from rekap_penilaian_staff) ───
   if (paramIdKategori) {
+    await sql`
+      DELETE FROM rekap_penilaian_kategori
+      WHERE id_periode = ${activePeriodeId} AND id_kategori_staff = ${paramIdKategori}
+    `;
     await sql`
       INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
       SELECT
@@ -718,17 +717,14 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
         SUM(jumlah_bukti_valid)::int
       FROM rekap_penilaian_staff
       WHERE id_periode = ${activePeriodeId} AND id_kategori_staff = ${paramIdKategori}
-      ON CONFLICT (id_periode, id_kategori_staff)
-      DO UPDATE SET
-        penilaian = EXCLUDED.penilaian,
-        kebijakan = EXCLUDED.kebijakan,
-        jumlah_bukti = EXCLUDED.jumlah_bukti,
-        total_bukti = EXCLUDED.total_bukti,
-        jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
     `;
   }
 
-  // ─── 6. Upsert rekap_penilaian_total (aggregate from rekap_penilaian_kategori) ───
+  // ─── 6. Delete + insert rekap_penilaian_total (aggregate from rekap_penilaian_kategori) ───
+  await sql`
+    DELETE FROM rekap_penilaian_total
+    WHERE id_periode = ${activePeriodeId}
+  `;
   await sql`
     INSERT INTO rekap_penilaian_total (id_periode, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
     SELECT
@@ -741,13 +737,6 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
     FROM rekap_penilaian_kategori
     WHERE id_periode = ${activePeriodeId}
     HAVING COUNT(*) > 0
-    ON CONFLICT (id_periode)
-    DO UPDATE SET
-      penilaian = EXCLUDED.penilaian,
-      kebijakan = EXCLUDED.kebijakan,
-      jumlah_bukti = EXCLUDED.jumlah_bukti,
-      total_bukti = EXCLUDED.total_bukti,
-      jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
   `;
 
   // ────────────────────────────────────────────────────────────────────────
@@ -858,25 +847,24 @@ export async function hitungNilaiPeriode(idPeriode: string) {
       }
     }
 
-    // ─── 4. Single transaction: batch upsert + aggregation ────────────────
+    // ─── 4. Single transaction: delete + batch insert + aggregation ────────────
     await sql.begin(async (sql) => {
-      // 4a. Batch upsert rekap_penilaian_aspek (chunks of 200 to stay within parameter limits)
+      // 4a. Delete all existing rekap records for this periode
+      await sql`DELETE FROM rekap_penilaian_total WHERE id_periode = ${idPeriode}`;
+      await sql`DELETE FROM rekap_penilaian_kategori WHERE id_periode = ${idPeriode}`;
+      await sql`DELETE FROM rekap_penilaian_staff WHERE id_periode = ${idPeriode}`;
+      await sql`DELETE FROM rekap_penilaian_aspek WHERE id_periode = ${idPeriode}`;
+
+      // 4b. Batch insert rekap_penilaian_aspek (chunks of 200 to stay within parameter limits)
       const CHUNK_SIZE = 200;
       for (let i = 0; i < rekapRows.length; i += CHUNK_SIZE) {
         const chunk = rekapRows.slice(i, i + CHUNK_SIZE);
         await sql`
           INSERT INTO rekap_penilaian_aspek ${sql(chunk, 'id_periode', 'id_staff', 'id_aspek_penilaian', 'jumlah_bukti', 'total_bukti', 'penilaian', 'jumlah_bukti_valid', 'kebijakan')}
-          ON CONFLICT (id_periode, id_staff, id_aspek_penilaian)
-          DO UPDATE SET
-            jumlah_bukti = EXCLUDED.jumlah_bukti,
-            total_bukti = EXCLUDED.total_bukti,
-            penilaian = EXCLUDED.penilaian,
-            jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid,
-            kebijakan = EXCLUDED.kebijakan
         `;
       }
 
-      // 4b. Batch upsert rekap_penilaian_staff via INSERT...SELECT
+      // 4c. Batch insert rekap_penilaian_staff via INSERT...SELECT
       await sql`
         INSERT INTO rekap_penilaian_staff (id_periode, id_staff, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
         SELECT
@@ -892,17 +880,9 @@ export async function hitungNilaiPeriode(idPeriode: string) {
         JOIN staff s ON r.id_staff = s.id_staff
         WHERE r.id_periode = ${idPeriode}
         GROUP BY r.id_periode, r.id_staff, s.id_kategori_staff
-        ON CONFLICT (id_periode, id_staff)
-        DO UPDATE SET
-          id_kategori_staff = EXCLUDED.id_kategori_staff,
-          penilaian = EXCLUDED.penilaian,
-          kebijakan = EXCLUDED.kebijakan,
-          jumlah_bukti = EXCLUDED.jumlah_bukti,
-          total_bukti = EXCLUDED.total_bukti,
-          jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
       `;
 
-      // 4c. Batch upsert rekap_penilaian_kategori via INSERT...SELECT
+      // 4d. Batch insert rekap_penilaian_kategori via INSERT...SELECT
       await sql`
         INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
         SELECT
@@ -916,16 +896,9 @@ export async function hitungNilaiPeriode(idPeriode: string) {
         FROM rekap_penilaian_staff
         WHERE id_periode = ${idPeriode} AND id_kategori_staff IS NOT NULL
         GROUP BY id_periode, id_kategori_staff
-        ON CONFLICT (id_periode, id_kategori_staff)
-        DO UPDATE SET
-          penilaian = EXCLUDED.penilaian,
-          kebijakan = EXCLUDED.kebijakan,
-          jumlah_bukti = EXCLUDED.jumlah_bukti,
-          total_bukti = EXCLUDED.total_bukti,
-          jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
       `;
 
-      // 4d. Upsert rekap_penilaian_total via INSERT...SELECT
+      // 4e. Insert rekap_penilaian_total via INSERT...SELECT
       await sql`
         INSERT INTO rekap_penilaian_total (id_periode, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
         SELECT
@@ -938,13 +911,6 @@ export async function hitungNilaiPeriode(idPeriode: string) {
         FROM rekap_penilaian_kategori
         WHERE id_periode = ${idPeriode}
         HAVING COUNT(*) > 0
-        ON CONFLICT (id_periode)
-        DO UPDATE SET
-          penilaian = EXCLUDED.penilaian,
-          kebijakan = EXCLUDED.kebijakan,
-          jumlah_bukti = EXCLUDED.jumlah_bukti,
-          total_bukti = EXCLUDED.total_bukti,
-          jumlah_bukti_valid = EXCLUDED.jumlah_bukti_valid
       `;
     });
 
