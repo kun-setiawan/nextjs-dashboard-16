@@ -6,7 +6,8 @@ import {
   Staff,
   KategoriStaff,
   UserRole,
-  Periode
+  Periode,
+  AspekPenilaian
 } from './definitions';
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require', prepare: false });
 
@@ -926,3 +927,51 @@ export async function hitungNilaiPeriode(idPeriode: string) {
   }
 }
 
+
+export async function fetchAspekPenilaian(): Promise<AspekPenilaian[]> {
+  try {
+    const rows = await sql<AspekPenilaian[]>`
+      SELECT
+        id_aspek_penilaian,
+        nama_aspek,
+        indikator,
+        penanggung_jawab,
+        COALESCE(jumlah_kegiatan, 1) AS jumlah_kegiatan,
+        COALESCE(unit_waktu, 'Bulan') AS unit_waktu,
+        COALESCE(tipe, 'Foto') AS tipe
+      FROM aspek_penilaian
+      ORDER BY nama_aspek ASC
+    `;
+    return rows;
+  } catch (err) {
+    console.error('Database Error fetchAspekPenilaian:', err);
+    throw new Error('Failed to fetch aspek penilaian.');
+  }
+}
+
+export async function updateAspekPenilaian(
+  id: string,
+  data: {
+    nama_aspek: string;
+    indikator: string;
+    jumlah_kegiatan: number;
+    unit_waktu: string;
+  }
+): Promise<{ success: boolean }> {
+  try {
+    await sql`
+      UPDATE aspek_penilaian
+      SET
+        nama_aspek       = ${data.nama_aspek},
+        indikator        = ${data.indikator},
+        jumlah_kegiatan  = ${data.jumlah_kegiatan},
+        unit_waktu       = ${data.unit_waktu}
+      WHERE id_aspek_penilaian = ${id}
+    `;
+    revalidatePath('/dashboard/aspek');
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error updateAspekPenilaian:', err);
+    throw new Error('Failed to update aspek penilaian.');
+  }
+}

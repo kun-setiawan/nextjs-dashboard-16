@@ -46,3 +46,14 @@ export type Periode = {
   jumlah_hari_kerja: number;
   status: 'Aktif' | 'Tidak Aktif';
 };
+
+export type AspekPenilaian = {
+  id_aspek_penilaian: string;
+  nama_aspek: string;
+  indikator: string;
+  penanggung_jawab: string;
+  jumlah_kegiatan: number;
+  unit_waktu: string;
+  tipe: string;
+};
+
