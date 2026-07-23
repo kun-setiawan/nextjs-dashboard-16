@@ -672,77 +672,79 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
       ? Math.min(100, Math.round((buktiValidCount / totalBukti) * 10000) / 100)
       : 0;
 
-  // ─── 3. Delete existing records then insert fresh ──────────────────────────
-
-  // 3a. Delete + insert rekap_penilaian_aspek
-  await sql`
-    DELETE FROM rekap_penilaian_aspek
-    WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff} AND id_aspek_penilaian = ${idAspek}
-  `;
-  await sql`
-    INSERT INTO rekap_penilaian_aspek (id_periode, id_staff, id_aspek_penilaian, jumlah_bukti, total_bukti, penilaian, jumlah_bukti_valid, kebijakan)
-    VALUES (${activePeriodeId}, ${idStaff}, ${idAspek}, ${buktiCount}, ${totalBukti}, ${penilaian}, ${buktiValidCount}, ${kebijakan})
-  `;
-
-  // ─── 4. Delete + insert rekap_penilaian_staff (aggregate from rekap_penilaian_aspek) ───
-  await sql`
-    DELETE FROM rekap_penilaian_staff
-    WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff}
-  `;
-  await sql`
-    INSERT INTO rekap_penilaian_staff (id_periode, id_staff, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
-    SELECT
-      ${activePeriodeId},
-      ${idStaff},
-      ${paramIdKategori},
-      ROUND(AVG(penilaian)::numeric, 2),
-      ROUND(AVG(kebijakan)::numeric, 2),
-      SUM(jumlah_bukti)::int,
-      SUM(total_bukti)::int,
-      SUM(jumlah_bukti_valid)::int
-    FROM rekap_penilaian_aspek
-    WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff}
-  `;
-
-  // ─── 5. Delete + insert rekap_penilaian_kategori (aggregate from rekap_penilaian_staff) ───
-  if (paramIdKategori) {
+  // ─── 3. Execute all deletes and inserts within a transaction ──────────────
+  await sql.begin(async (sql) => {
+    // 3a. Delete + insert rekap_penilaian_aspek
     await sql`
-      DELETE FROM rekap_penilaian_kategori
-      WHERE id_periode = ${activePeriodeId} AND id_kategori_staff = ${paramIdKategori}
+      DELETE FROM rekap_penilaian_aspek
+      WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff} AND id_aspek_penilaian = ${idAspek}
     `;
     await sql`
-      INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
+      INSERT INTO rekap_penilaian_aspek (id_periode, id_staff, id_aspek_penilaian, jumlah_bukti, total_bukti, penilaian, jumlah_bukti_valid, kebijakan)
+      VALUES (${activePeriodeId}, ${idStaff}, ${idAspek}, ${buktiCount}, ${totalBukti}, ${penilaian}, ${buktiValidCount}, ${kebijakan})
+    `;
+
+    // ─── 4. Delete + insert rekap_penilaian_staff (aggregate from rekap_penilaian_aspek) ───
+    await sql`
+      DELETE FROM rekap_penilaian_staff
+      WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff}
+    `;
+    await sql`
+      INSERT INTO rekap_penilaian_staff (id_periode, id_staff, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
       SELECT
         ${activePeriodeId},
+        ${idStaff},
         ${paramIdKategori},
         ROUND(AVG(penilaian)::numeric, 2),
         ROUND(AVG(kebijakan)::numeric, 2),
         SUM(jumlah_bukti)::int,
         SUM(total_bukti)::int,
         SUM(jumlah_bukti_valid)::int
-      FROM rekap_penilaian_staff
-      WHERE id_periode = ${activePeriodeId} AND id_kategori_staff = ${paramIdKategori}
+      FROM rekap_penilaian_aspek
+      WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff}
     `;
-  }
 
-  // ─── 6. Delete + insert rekap_penilaian_total (aggregate from rekap_penilaian_kategori) ───
-  await sql`
-    DELETE FROM rekap_penilaian_total
-    WHERE id_periode = ${activePeriodeId}
-  `;
-  await sql`
-    INSERT INTO rekap_penilaian_total (id_periode, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
-    SELECT
-      ${activePeriodeId},
-      ROUND(AVG(penilaian)::numeric, 2),
-      ROUND(AVG(kebijakan)::numeric, 2),
-      SUM(jumlah_bukti)::int,
-      SUM(total_bukti)::int,
-      SUM(jumlah_bukti_valid)::int
-    FROM rekap_penilaian_kategori
-    WHERE id_periode = ${activePeriodeId}
-    HAVING COUNT(*) > 0
-  `;
+    // ─── 5. Delete + insert rekap_penilaian_kategori (aggregate from rekap_penilaian_staff) ───
+    if (paramIdKategori) {
+      await sql`
+        DELETE FROM rekap_penilaian_kategori
+        WHERE id_periode = ${activePeriodeId} AND id_kategori_staff = ${paramIdKategori}
+      `;
+      await sql`
+        INSERT INTO rekap_penilaian_kategori (id_periode, id_kategori_staff, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
+        SELECT
+          ${activePeriodeId},
+          ${paramIdKategori},
+          ROUND(AVG(penilaian)::numeric, 2),
+          ROUND(AVG(kebijakan)::numeric, 2),
+          SUM(jumlah_bukti)::int,
+          SUM(total_bukti)::int,
+          SUM(jumlah_bukti_valid)::int
+        FROM rekap_penilaian_staff
+        WHERE id_periode = ${activePeriodeId} AND id_kategori_staff = ${paramIdKategori}
+      `;
+    }
+
+    // ─── 6. Delete + insert rekap_penilaian_total (aggregate from rekap_penilaian_kategori) ───
+    await sql`
+      DELETE FROM rekap_penilaian_total
+      WHERE id_periode = ${activePeriodeId}
+    `;
+    await sql`
+      INSERT INTO rekap_penilaian_total (id_periode, penilaian, kebijakan, jumlah_bukti, total_bukti, jumlah_bukti_valid)
+      SELECT
+        ${activePeriodeId},
+        ROUND(AVG(penilaian)::numeric, 2),
+        ROUND(AVG(kebijakan)::numeric, 2),
+        SUM(jumlah_bukti)::int,
+        SUM(total_bukti)::int,
+        SUM(jumlah_bukti_valid)::int
+      FROM rekap_penilaian_kategori
+      WHERE id_periode = ${activePeriodeId}
+      HAVING COUNT(*) > 0
+    `;
+  });
+
 
   // ────────────────────────────────────────────────────────────────────────
 }

@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (activePeriodeId) {
-      hitungNilaiPeriodeSpesifik(activePeriodeId, idAspek, idStaff)
+      await hitungNilaiPeriodeSpesifik(activePeriodeId, idAspek, idStaff)
     }
 
     // // ─── Update rekap_penilaian_aspek ───────────────────────────────────────
