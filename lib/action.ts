@@ -237,15 +237,19 @@ export async function fetchDashboardOverviewStats() {
   };
 }
 
-export async function fetchStaffAssessmentAspects(idStaff: string) {
+export async function fetchStaffAssessmentAspects(idStaff: string, categoryId: string) {
   const periodes = await sql<{ id_periode: string }[]>`
     SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
   `;
   const idPeriode = periodes[0]?.id_periode ?? null;
 
   const aspekList = await sql<{ id_aspek_penilaian: string; nama_aspek: string; indikator: string }[]>`
-    SELECT id_aspek_penilaian, nama_aspek, indikator 
-    FROM aspek_penilaian
+    SELECT a.id_aspek_penilaian, a.nama_aspek, a.indikator
+    FROM aspek_penilaian a
+    JOIN aspek_penilaian_kategori_staff ak
+      ON a.id_aspek_penilaian = ak.id_aspek_penilaian
+    WHERE ak.id_kategori_staff = ${categoryId}
+    ORDER BY a.nama_aspek ASC
   `;
 
   const rekapAspek = idPeriode ? await sql<{ id_aspek_penilaian: string; penilaian: number; kebijakan: number }[]>`

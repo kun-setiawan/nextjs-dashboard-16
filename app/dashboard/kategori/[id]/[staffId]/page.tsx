@@ -51,7 +51,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
   const allCategories = await fetchDashboardKategoriStaff()
   const category = allCategories.find((c) => c.id_kategori_staff === id)
   const personnel = category?.staffs.find((p) => p.id_staff === staffId)
-  const aspekList = await fetchStaffAssessmentAspects(staffId)
+  const aspekList = await fetchStaffAssessmentAspects(staffId, id)
 
   if (!category || !personnel) {
     return (
