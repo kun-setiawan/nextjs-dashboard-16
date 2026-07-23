@@ -434,36 +434,39 @@ export interface EvidenceWithMonth {
   validitas?: boolean
 }
 
+// Maps aspek tipe to the corresponding tipe_bukti value stored in the DB
+function aspekTipeToBuktiTipe(aspekTipe: string): string {
+  if (aspekTipe === 'Absensi') return 'scan';
+  return 'image'; // default: 'Foto' → 'image'
+}
+
 export async function fetchEvidencesByMonth(
   staffId: string,
   aspectId: string,
-  bulan: number
+  bulan: number,
+  aspekTipe: string
 ): Promise<EvidenceWithMonth[]> {
   try {
-    const periodes = await sql<{ id_periode: string }[]>`
-      SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
-    `;
-    const idPeriode = periodes[0]?.id_periode ?? null;
-
-    if (!idPeriode) return [];
-
+    const tipeFilter = aspekTipeToBuktiTipe(aspekTipe);
     const evidences = await sql<EvidenceWithMonth[]>`
       SELECT
-        id_bukti_penilaian          AS id,
-        tipe_bukti                  AS type,
-        nama_bukti                  AS name,
-        keterangan                  AS description,
-        file_bukti                  AS url,
-        id_aspek_penilaian,
-        EXTRACT(MONTH FROM created_at)::int AS bulan,
-        created_at::text            AS created_at,
-        validitas
-      FROM bukti_penilaian
-      WHERE id_staff = ${staffId}
-        AND id_aspek_penilaian = ${aspectId}
-        AND id_periode = ${idPeriode}
-        AND EXTRACT(MONTH FROM created_at) = ${bulan}
-      ORDER BY created_at DESC
+        bp.id_bukti_penilaian          AS id,
+        bp.tipe_bukti                  AS type,
+        bp.nama_bukti                  AS name,
+        bp.keterangan                  AS description,
+        bp.file_bukti                  AS url,
+        bp.id_aspek_penilaian,
+        EXTRACT(MONTH FROM bp.created_at)::int AS bulan,
+        bp.created_at::text            AS created_at,
+        bp.validitas
+      FROM bukti_penilaian bp
+      JOIN periode p ON bp.id_periode = p.id_periode
+      WHERE bp.id_staff = ${staffId}
+        AND bp.id_aspek_penilaian = ${aspectId}
+        AND p.status = 'Aktif'
+        AND bp.tipe_bukti = ${tipeFilter}
+        AND EXTRACT(MONTH FROM bp.created_at) = ${bulan}
+      ORDER BY bp.created_at DESC
     `;
     return evidences;
   } catch (err) {
@@ -504,24 +507,21 @@ export async function updateEvidencesValiditas(
 
 export async function fetchEvidencesCountByMonth(
   staffId: string,
-  aspectId: string
+  aspectId: string,
+  aspekTipe: string
 ): Promise<Record<number, number>> {
   try {
-    const periodes = await sql<{ id_periode: string }[]>`
-      SELECT id_periode FROM periode WHERE status = 'Aktif' LIMIT 1
-    `;
-    const idPeriode = periodes[0]?.id_periode ?? null;
-
-    if (!idPeriode) return {};
-
+    const tipeFilter = aspekTipeToBuktiTipe(aspekTipe);
     const rows = await sql<{ bulan: number; jumlah: number }[]>`
       SELECT
-        EXTRACT(MONTH FROM created_at)::int AS bulan,
-        COUNT(*)::int                        AS jumlah
-      FROM bukti_penilaian
-      WHERE id_staff = ${staffId}
-        AND id_aspek_penilaian = ${aspectId}
-        AND id_periode = ${idPeriode}
+        EXTRACT(MONTH FROM bp.created_at)::int AS bulan,
+        COUNT(*)::int                          AS jumlah
+      FROM bukti_penilaian bp
+      JOIN periode p ON bp.id_periode = p.id_periode
+      WHERE bp.id_staff = ${staffId}
+        AND bp.id_aspek_penilaian = ${aspectId}
+        AND p.status = 'Aktif'
+        AND bp.tipe_bukti = ${tipeFilter}
       GROUP BY bulan
     `;
     const result: Record<number, number> = {};

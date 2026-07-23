@@ -47,7 +47,7 @@ export default async function MobileEvidenceDetailPage({
   }
 
   const periodeAktif = await fetchPeriodeAktif()
-  const evidenceCountByMonth = await fetchEvidencesCountByMonth(staff.id_staff, aspectId)
+  const evidenceCountByMonth = await fetchEvidencesCountByMonth(staff.id_staff, aspectId, aspect.tipe)
 
   return (
     <MobileEvidenceDetail

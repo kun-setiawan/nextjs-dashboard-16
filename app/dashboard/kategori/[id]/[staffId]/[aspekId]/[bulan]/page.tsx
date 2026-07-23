@@ -65,7 +65,7 @@ export default async function DesktopEvidenceGalleryPage({
   }
 
   const periodeAktif = await fetchPeriodeAktif()
-  const evidences = await fetchEvidencesByMonth(staffId, aspekId, bulanNum)
+  const evidences = await fetchEvidencesByMonth(staffId, aspekId, bulanNum, aspect.tipe)
   const bulanName = MONTH_NAMES[bulanNum] ?? `Bulan ${bulanNum}`
 
   return (

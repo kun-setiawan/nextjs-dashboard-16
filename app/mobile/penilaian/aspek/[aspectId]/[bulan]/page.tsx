@@ -63,7 +63,7 @@ export default async function MobileEvidenceGalleryPage({
   }
 
   const periodeAktif = await fetchPeriodeAktif()
-  const evidences = await fetchEvidencesByMonth(staff.id_staff, aspectId, bulanNum)
+  const evidences = await fetchEvidencesByMonth(staff.id_staff, aspectId, bulanNum, aspect.tipe)
   const bulanName = MONTH_NAMES[bulanNum] ?? `Bulan ${bulanNum}`
 
   return (

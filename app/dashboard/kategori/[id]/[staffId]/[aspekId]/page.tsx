@@ -66,7 +66,7 @@ export default async function DesktopEvidenceMonthPage({
   }
 
   const periodeAktif = await fetchPeriodeAktif()
-  const evidenceCountByMonth = await fetchEvidencesCountByMonth(staffId, aspekId)
+  const evidenceCountByMonth = await fetchEvidencesCountByMonth(staffId, aspekId, aspect.tipe)
 
   const semester = periodeAktif?.semester ?? "Ganjil"
   const months = semester === "Genap" ? MONTHS_GENAP : MONTHS_GANJIL
