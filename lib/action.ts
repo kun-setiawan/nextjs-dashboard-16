@@ -249,7 +249,7 @@ export async function fetchStaffAssessmentAspects(idStaff: string, categoryId: s
     JOIN aspek_penilaian_kategori_staff ak
       ON a.id_aspek_penilaian = ak.id_aspek_penilaian
     WHERE ak.id_kategori_staff = ${categoryId}
-    ORDER BY a.nama_aspek ASC
+    ORDER BY a.indeks ASC, a.nama_aspek ASC
   `;
 
   const rekapAspek = idPeriode ? await sql<{ id_aspek_penilaian: string; penilaian: number; kebijakan: number }[]>`
@@ -379,7 +379,7 @@ export async function fetchAssessmentAspectsByStaff(categoryId: string, staffId:
         AND r.id_staff = ${staffId}
         AND r.id_periode = ${activePeriodeId}
       WHERE ak.id_kategori_staff = ${categoryId}
-      ORDER BY a.nama_aspek ASC
+      ORDER BY a.indeks ASC, a.nama_aspek ASC
     `;
 
     const evidences = await sql<{
@@ -545,7 +545,7 @@ export async function fetchPeriode() {
     const periodes = await sql<Periode[]>`
       SELECT *
       FROM periode
-      ORDER BY tahun_periode DESC, semester DESC
+      ORDER BY indeks ASC, tahun_periode DESC, semester DESC
     `;
     return periodes;
   } catch (err) {
@@ -942,9 +942,10 @@ export async function fetchAspekPenilaian(): Promise<AspekPenilaian[]> {
         penanggung_jawab,
         COALESCE(jumlah_kegiatan, 1) AS jumlah_kegiatan,
         COALESCE(unit_waktu, 'Bulan') AS unit_waktu,
-        COALESCE(tipe, 'Foto') AS tipe
+        COALESCE(tipe, 'Foto') AS tipe,
+        indeks
       FROM aspek_penilaian
-      ORDER BY nama_aspek ASC
+      ORDER BY indeks ASC, nama_aspek ASC
     `;
     return rows;
   } catch (err) {

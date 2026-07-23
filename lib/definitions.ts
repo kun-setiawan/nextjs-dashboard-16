@@ -45,6 +45,7 @@ export type Periode = {
   updated_at?: string | Date;
   jumlah_hari_kerja: number;
   status: 'Aktif' | 'Tidak Aktif';
+  indeks: number;
 };
 
 export type AspekPenilaian = {
@@ -55,5 +56,6 @@ export type AspekPenilaian = {
   jumlah_kegiatan: number;
   unit_waktu: string;
   tipe: string;
+  indeks: number;
 };
 
