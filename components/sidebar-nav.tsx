@@ -4,19 +4,55 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import {LayoutDashboard, Users, CalendarDays, FileCheck, QrCode, ClipboardList} from "lucide-react"
+import {
+  LayoutDashboard,
+  Users,
+  CalendarDays,
+  FileCheck,
+  QrCode,
+  ClipboardList,
+  Settings,
+  ChevronDown,
+  ChevronRight
+} from "lucide-react"
+import { useState } from "react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: FileCheck, label: "Penilaian Kinerja", href: "/dashboard/kategori" },
-  { icon: ClipboardList, label: "Aspek Penilaian", href: "/dashboard/aspek" },
-  { icon: Users, label: "Daftar Staff", href: "/dashboard/staff" },
-  { icon: CalendarDays, label: "Kelola Periode", href: "/dashboard/periode" },
-  { icon: QrCode, label: "Pengaturan Absensi", href: "/dashboard/absensi" },
+  {
+    icon: Settings,
+    label: "Pengaturan",
+    children: [
+      { icon: Users, label: "Daftar Staff", href: "/dashboard/staff" },
+      { icon: CalendarDays, label: "Kelola Periode", href: "/dashboard/periode" },
+      { icon: ClipboardList, label: "Aspek Penilaian", href: "/dashboard/aspek" },
+      { icon: QrCode, label: "Pengaturan Absensi", href: "/dashboard/absensi" },
+    ],
+  },
 ]
 
 export function SidebarNav() {
   const pathname = usePathname()
+  
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>(() => {
+    const initialState: Record<string, boolean> = {}
+    navItems.forEach((item) => {
+      if (item.children) {
+        const isChildActive = item.children.some(
+          (child) => pathname === child.href || (child.href !== "/" && pathname.startsWith(child.href!))
+        )
+        if (isChildActive) {
+          initialState[item.label] = true
+        }
+      }
+    })
+    return initialState
+  })
+
+  const toggleMenu = (label: string) => {
+    setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-sidebar border-r border-sidebar-border">
@@ -40,17 +76,72 @@ export function SidebarNav() {
 
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+          if (item.children) {
+            const isOpen = openMenus[item.label]
+            const isAnyChildActive = item.children.some(
+              (child) => pathname === child.href || (child.href !== "/" && pathname.startsWith(child.href!))
+            )
+            
+            return (
+              <div key={item.label} className="space-y-1">
+                <button
+                  onClick={() => toggleMenu(item.label)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm transition-colors",
+                    isAnyChildActive && !isOpen
+                      ? "text-sidebar-foreground bg-sidebar-accent/30"
+                      : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className="h-5 w-5" />
+                    <span>{item.label}</span>
+                  </div>
+                  {isOpen ? (
+                    <ChevronDown className="h-4 w-4 transition-transform" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 transition-transform" />
+                  )}
+                </button>
+                
+                {isOpen && (
+                  <div className="pl-6 space-y-1 mt-1">
+                    {item.children.map((child) => {
+                      const isChildActive =
+                        pathname === child.href || (child.href !== "/" && pathname.startsWith(child.href!))
 
+                      return (
+                        <Link
+                          key={child.label}
+                          href={child.href!}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors",
+                            isChildActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <child.icon className="h-5 w-5" />
+                          <span>{child.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
+          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href!))
           return (
             <Link
               key={item.label}
-              href={item.href}
+              href={item.href!}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors",
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
               <item.icon className="h-5 w-5" />
