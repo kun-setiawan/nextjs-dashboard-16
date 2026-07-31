@@ -17,9 +17,10 @@ import imageCompression from "browser-image-compression";
 
 interface MobileProfileEditProps {
   staff: Staff
+  email: string
 }
 
-export function MobileProfileEdit({ staff }: MobileProfileEditProps) {
+export function MobileProfileEdit({ staff, email }: MobileProfileEditProps) {
   const [nama, setNama] = useState(staff.nama_staff)
   const [currentFoto, setCurrentFoto] = useState(staff.foto_profil || "")
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -263,7 +264,7 @@ export function MobileProfileEdit({ staff }: MobileProfileEditProps) {
                 Email
               </Label>
               <Input
-                value={staff.user_id}
+                value={email}
                 disabled
                 className="bg-muted/30 border-border text-muted-foreground"
               />

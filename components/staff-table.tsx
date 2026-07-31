@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { categories } from "@/lib/data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -15,31 +14,23 @@ interface StaffMember {
   name: string
   categoryId: string
   categoryName: string
-  position: string
   avatar: string
 }
+interface StaffTableProps {
+  initialStaff: StaffMember[]
+  categories: { id: string; name: string }[]
+}
 
-export function StaffTable() {
+export function StaffTable({ initialStaff, categories }: StaffTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
 
-  // Flatten all personnel from categories into a single list
-  const allStaff: StaffMember[] = categories.flatMap((category) =>
-    category.personnel.map((person) => ({
-      id: person.id,
-      name: person.name,
-      categoryId: category.id,
-      categoryName: category.name,
-      position: person.position,
-      avatar: person.avatar,
-    })),
-  )
+  const allStaff = initialStaff;
 
   // Filter staff based on search query and category
   const filteredStaff = allStaff.filter((staff) => {
     const matchesSearch =
-      staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staff.position.toLowerCase().includes(searchQuery.toLowerCase())
+      staff.name.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = categoryFilter === "all" || staff.categoryId === categoryFilter
     return matchesSearch && matchesCategory
   })
@@ -91,14 +82,13 @@ export function StaffTable() {
               <TableHead className="w-16">Foto</TableHead>
               <TableHead>Nama</TableHead>
               <TableHead>Kategori</TableHead>
-              <TableHead>Posisi</TableHead>
               <TableHead className="w-24 text-center">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredStaff.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Tidak ada data staff yang ditemukan
                 </TableCell>
               </TableRow>
@@ -124,7 +114,6 @@ export function StaffTable() {
                       {staff.categoryName}
                     </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{staff.position}</TableCell>
                   <TableCell className="text-center">
                     <Link href={`/dashboard/staff/${staff.id}/edit`}>
                       <Button variant="ghost" size="icon">

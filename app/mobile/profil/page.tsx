@@ -23,5 +23,5 @@ export default async function MobileProfilePage() {
     )
   }
 
-  return <MobileProfileEdit staff={staffList[0]} />
+  return <MobileProfileEdit staff={staffList[0]} email={session.user.email || ""} />
 }

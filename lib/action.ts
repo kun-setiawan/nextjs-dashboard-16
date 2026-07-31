@@ -85,19 +85,96 @@ export async function fetchStaff() {
   try {
     const staffs = await sql<Staff[]>`
       SELECT
-        id_staff,
-        id_kategori_staff,
-        user_id,
-        nama_staff,
-        foto_profil
-      FROM staff
-      ORDER BY nama_staff ASC
+        s.id_staff,
+        s.id_kategori_staff,
+        s.user_id,
+        s.nama_staff,
+        s.foto_profil
+      FROM staff s
+      LEFT JOIN kategori_staff k ON s.id_kategori_staff = k.id_kategori_staff
+      ORDER BY k.indeks ASC, s.nama_staff ASC
     `;
 
     return staffs;
   } catch (err) {
     console.error('Database Error:', err);
     throw new Error('Failed to fetch all customers.');
+  }
+}
+
+export async function fetchStaffById(idStaff: string): Promise<{
+  id_staff: string;
+  id_kategori_staff: string;
+  nama_kategori: string;
+  user_id: string | null;
+  nama_staff: string;
+  foto_profil: string;
+} | null> {
+  try {
+    const rows = await sql<{
+      id_staff: string;
+      id_kategori_staff: string;
+      nama_kategori: string;
+      user_id: string | null;
+      nama_staff: string;
+      foto_profil: string;
+    }[]>`
+      SELECT
+        s.id_staff,
+        s.id_kategori_staff,
+        k.nama_kategori,
+        s.user_id,
+        s.nama_staff,
+        s.foto_profil
+      FROM staff s
+      JOIN kategori_staff k ON s.id_kategori_staff = k.id_kategori_staff
+      WHERE s.id_staff = ${idStaff}
+      LIMIT 1
+    `;
+    return rows[0] ?? null;
+  } catch (err) {
+    console.error('Database Error fetchStaffById:', err);
+    throw new Error('Failed to fetch staff by id.');
+  }
+}
+
+export async function updateStaffPassword(
+  idStaff: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Get user_id from staff table
+    const rows = await sql<{ user_id: string | null }[]>`
+      SELECT user_id FROM staff WHERE id_staff = ${idStaff} LIMIT 1
+    `;
+
+    const userId = rows[0]?.user_id;
+
+    if (!userId) {
+      return { success: false, error: 'User tidak ditemukan' };
+    }
+
+    // Use Supabase Admin client (service role) to update password in auth.users
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseAdmin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: newPassword,
+    });
+
+    if (error) {
+      console.error('Supabase Admin Error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error updateStaffPassword:', err);
+    return { success: false, error: 'Terjadi kesalahan saat memperbarui password.' };
   }
 }
 
