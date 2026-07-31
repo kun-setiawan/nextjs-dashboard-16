@@ -105,7 +105,7 @@ export function PersonnelDetailModal({ kategori_staff, onClose }: PersonnelDetai
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">Daftar Personnel</h3>
           {kategori_staff.staffs.map((staff) => (
-            <Card key={staff.id_kategori_staff} className="bg-secondary/30 border-border">
+            <Card key={staff.id_staff} className="bg-secondary/30 border-border">
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
                   <Avatar className="h-12 w-12">

@@ -80,16 +80,6 @@ export default async function DesktopEvidenceGalleryPage({
         />
 
         <main className="flex-1 p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/dashboard/kategori/${id}/${staffId}/${aspekId}`}
-              className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors inline-flex items-center gap-2"
-            >
-              <ArrowLeft className="h-5 w-5 text-foreground" />
-              <span className="text-sm font-medium">Kembali ke Pilihan Bulan</span>
-            </Link>
-          </div>
-
           <Card className="bg-card border-border">
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold text-foreground mb-2">Informasi Aspek</h2>
