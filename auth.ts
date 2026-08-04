@@ -11,7 +11,7 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LoginSchema = z.object({
-  username: z.string().min(1, 'Username/Email tidak boleh kosong'),
+  email: z.string().email('Format email tidak valid').min(1, 'Email tidak boleh kosong'),
   password: z.string().min(1, 'Password tidak boleh kosong'),
 });
 
@@ -24,13 +24,11 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         const parsed = LoginSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const { username, password } = parsed.data;
+        const { email, password } = parsed.data;
 
         // 2. Authenticate with Supabase Auth
-        // Note: Supabase uses 'email' by default for logins. 
-        // We'll assume 'username' from the form acts as the email.
         const { data, error } = await supabase.auth.signInWithPassword({
-          email: username,
+          email: email,
           password: password,
         });
 

@@ -19,7 +19,7 @@ export async function authenticate(
 ): Promise<string | undefined> {
   try {
     await signIn('credentials', {
-      username: formData.get('username'),
+      email: formData.get('email'),
       password: formData.get('password'),
       // Auth.js will redirect to '/' on success (via authConfig pages)
       redirectTo: '/',

@@ -49,14 +49,14 @@ function LoginContent() {
 
           <form action={formAction} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-foreground">
-                Username
+              <Label htmlFor="email" className="text-foreground">
+                Email
               </Label>
               <Input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="Masukkan username"
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Masukkan email"
                 className="bg-input border-border focus:border-primary"
                 required
               />
