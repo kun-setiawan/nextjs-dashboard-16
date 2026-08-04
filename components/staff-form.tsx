@@ -263,6 +263,7 @@ export function StaffForm({ mode, initialData, kategoriList = [] }: StaffFormPro
             </div>
 
             {/* Password Field */}
+            {mode === "edit" && initialData?.userId && (
             <div className="space-y-2">
               <Label htmlFor="password">
                 {mode === "edit" ? (
@@ -295,7 +296,8 @@ export function StaffForm({ mode, initialData, kategoriList = [] }: StaffFormPro
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Confirm Password Field */}
             {formData.password && (

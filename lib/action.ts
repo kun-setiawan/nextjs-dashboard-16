@@ -729,7 +729,7 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
   const [periodeRows, aspekRows, staffKategoriRows, buktiRows] = await Promise.all([
     sql`SELECT id_periode, jumlah_hari_kerja FROM periode WHERE status = 'Aktif' LIMIT 1`,
     sql`SELECT id_aspek_penilaian, unit_waktu, jumlah_kegiatan FROM aspek_penilaian WHERE id_aspek_penilaian = ${idAspek}`,
-    sql`SELECT id_kategori_staff FROM staff WHERE id_staff = ${idStaff}`,
+    sql`SELECT id_kategori_staff FROM staff WHERE id_staff = ${idStaff} AND user_id IS NOT NULL AND EXISTS (SELECT 1 FROM users_role WHERE users_role.user_id = staff.user_id AND role = 'member')`,
     // Bukti will be re-fetched below once activePeriodeId is confirmed, but we optimistically fetch here
     sql`SELECT created_at, validitas FROM bukti_penilaian WHERE id_periode = ${activePeriodeId} AND id_staff = ${idStaff} AND id_aspek_penilaian = ${idAspek} ORDER BY created_at ASC`,
   ]);
@@ -751,7 +751,12 @@ export async function hitungNilaiPeriodeSpesifik(activePeriodeId: string, idAspe
     return;
   }
 
-  const paramIdKategori = staffKategoriRows[0]?.id_kategori_staff ?? null;
+  if (staffKategoriRows.length === 0) {
+    console.warn('Staff tidak ditemukan, belum memiliki user, atau bukan member:', idStaff);
+    return;
+  }
+
+  const paramIdKategori = staffKategoriRows[0].id_kategori_staff ?? null;
 
   // If activePeriodeId changed from the optimistic fetch, re-fetch bukti
   let finalBuktiRows = buktiRows;
@@ -900,7 +905,7 @@ export async function hitungNilaiPeriode(idPeriode: string) {
     const [periodResults, aspects, staffs, allBukti] = await Promise.all([
       sql`SELECT jumlah_hari_kerja FROM periode WHERE id_periode = ${idPeriode}`,
       sql`SELECT id_aspek_penilaian, unit_waktu, jumlah_kegiatan FROM aspek_penilaian`,
-      sql`SELECT id_staff FROM staff`,
+      sql`SELECT id_staff FROM staff WHERE user_id IS NOT NULL AND EXISTS (SELECT 1 FROM users_role WHERE users_role.user_id = staff.user_id AND role = 'member')`,
       sql`SELECT id_staff, id_aspek_penilaian, created_at, validitas FROM bukti_penilaian WHERE id_periode = ${idPeriode} ORDER BY created_at ASC`,
     ]);
 
