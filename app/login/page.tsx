@@ -1,18 +1,22 @@
 "use client"
 
-import { useActionState } from "react"
+import { Suspense } from "react"
+import { useActionState, useState } from "react"
 import { authenticate } from "@/lib/auth-actions"
 import Image from "next/image"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react"
-import { useState } from "react"
+import { Eye, EyeOff, LogIn, AlertCircle, UserPlus, CheckCircle2 } from "lucide-react"
 
-export default function LoginPage() {
+function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [errorMessage, formAction, isPending] = useActionState(authenticate, undefined)
+  const searchParams = useSearchParams()
+  const justRegistered = searchParams.get('registered') === 'true'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-primary/10 p-4">
@@ -31,6 +35,18 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
+          {/* Banner registrasi berhasil */}
+          {justRegistered && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 px-3 py-2 text-sm text-success mb-4"
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>Registrasi berhasil! Silakan masuk dengan akun Anda.</span>
+            </div>
+          )}
+
           <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username" className="text-foreground">
@@ -103,11 +119,35 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-center text-xs text-muted-foreground mt-6">
+          {/* Link ke registrasi */}
+          <div className="flex items-center justify-center gap-1 mt-5 text-sm text-muted-foreground">
+            <span>Belum punya akun?</span>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-1 text-primary font-medium hover:text-primary/80 transition-colors"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Daftar di sini
+            </Link>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-3">
             Hubungi administrator jika mengalami kendala login
           </p>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-primary/10">
+        <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

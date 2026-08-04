@@ -1,39 +1,55 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { updateStaffPassword } from "@/lib/action"
+import { updateStaffPassword, updateStaffKategori, updateUserRoles } from "@/lib/action"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Camera, Save, ArrowLeft, Trash2, Eye, EyeOff } from "lucide-react"
+import { Camera, Save, ArrowLeft, Trash2, Eye, EyeOff, ShieldCheck, FolderKanban } from "lucide-react"
 import { toast } from "sonner"
+
+interface KategoriOption {
+  id: string
+  nama: string
+}
 
 interface StaffFormProps {
   mode: "add" | "edit"
   initialData?: {
     id: string
     name: string
-    categoryId: string
+    categoryId: string | null
     avatar: string
+    userId?: string | null
+    currentRoles?: string[]
   }
+  kategoriList?: KategoriOption[]
 }
 
-export function StaffForm({ mode, initialData }: StaffFormProps) {
+const AVAILABLE_ROLES: { value: string; label: string; description: string }[] = [
+  { value: "admin", label: "Admin", description: "Akses penuh ke dashboard dan manajemen sistem" },
+  { value: "member", label: "Member", description: "Akses ke halaman mobile penilaian kinerja" },
+]
+
+export function StaffForm({ mode, initialData, kategoriList = [] }: StaffFormProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
-    categoryId: initialData?.categoryId || "",
+    categoryId: initialData?.categoryId ?? "",
     password: "",
     confirmPassword: "",
     avatar: initialData?.avatar || "",
   })
+
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(
+    initialData?.currentRoles ?? []
+  )
 
   const [previewUrl, setPreviewUrl] = useState<string>(initialData?.avatar || "")
   const [showPassword, setShowPassword] = useState(false)
@@ -55,6 +71,12 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
+  }
+
+  const toggleRole = (role: string) => {
+    setSelectedRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,25 +101,66 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
       }
     }
 
-    if (mode === "edit" && !formData.password) {
-      // No password change, nothing to do
-      toast.info("Tidak ada perubahan password")
-      return
-    }
-
     setIsSubmitting(true)
 
     try {
-      if (mode === "edit" && initialData?.id && formData.password) {
-        const result = await updateStaffPassword(initialData.id, formData.password)
-        if (!result.success) {
-          toast.error(result.error || "Gagal memperbarui password")
-          return
+      if (mode === "edit" && initialData?.id) {
+        let hasChanges = false
+        let hasError = false
+
+        // 1. Update password (jika diisi)
+        if (formData.password) {
+          const result = await updateStaffPassword(initialData.id, formData.password)
+          if (!result.success) {
+            toast.error(result.error || "Gagal memperbarui password")
+            hasError = true
+          } else {
+            hasChanges = true
+          }
         }
-        toast.success("Password staff berhasil diperbarui")
-        router.push("/dashboard/staff")
+
+        if (hasError) return
+
+        // 2. Update kategori staff (jika berubah)
+        const newCategoryId = formData.categoryId || null
+        const oldCategoryId = initialData.categoryId ?? null
+        if (newCategoryId !== oldCategoryId) {
+          const result = await updateStaffKategori(initialData.id, newCategoryId)
+          if (!result.success) {
+            toast.error(result.error || "Gagal memperbarui kategori")
+            hasError = true
+          } else {
+            hasChanges = true
+          }
+        }
+
+        if (hasError) return
+
+        // 3. Update roles (jika ada userId)
+        if (initialData.userId) {
+          const oldRolesSorted = [...(initialData.currentRoles ?? [])].sort().join(",")
+          const newRolesSorted = [...selectedRoles].sort().join(",")
+          if (oldRolesSorted !== newRolesSorted) {
+            const result = await updateUserRoles(initialData.userId, selectedRoles)
+            if (!result.success) {
+              toast.error(result.error || "Gagal memperbarui role")
+              hasError = true
+            } else {
+              hasChanges = true
+            }
+          }
+        }
+
+        if (hasError) return
+
+        if (hasChanges) {
+          toast.success("Data staff berhasil diperbarui")
+          router.push("/dashboard/staff")
+        } else {
+          toast.info("Tidak ada perubahan yang disimpan")
+        }
+
       } else if (mode === "add") {
-        // Add mode: simulate save (extend as needed)
         toast.success("Staff baru berhasil ditambahkan")
         router.push("/dashboard/staff")
       }
@@ -179,7 +242,7 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
             <CardTitle>Informasi Staff</CardTitle>
             <CardDescription>
               {mode === "edit"
-                ? `Mengubah password untuk: ${initialData?.name}`
+                ? `Edit data untuk: ${initialData?.name}`
                 : "Lengkapi data informasi staff di bawah ini"}
             </CardDescription>
           </CardHeader>
@@ -206,7 +269,7 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
                   <>
                     Password Baru{" "}
                     <span className="text-muted-foreground text-xs font-normal">
-                      (wajib diisi untuk mengubah password)
+                      (kosongkan jika tidak ingin mengubah password)
                     </span>
                   </>
                 ) : (
@@ -274,6 +337,94 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
           </CardContent>
         </Card>
 
+        {/* Kategori Staff Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <FolderKanban className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle>Kategori Staff</CardTitle>
+                <CardDescription>Tentukan kategori/divisi staff ini</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="categoryId">Kategori</Label>
+              <select
+                id="categoryId"
+                value={formData.categoryId}
+                onChange={(e) => setFormData((prev) => ({ ...prev, categoryId: e.target.value }))}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">— Belum ditentukan —</option>
+                {kategoriList.map(k => (
+                  <option key={k.id} value={k.id}>{k.nama}</option>
+                ))}
+              </select>
+              {!formData.categoryId && (
+                <p className="text-xs text-muted-foreground">
+                  Staff belum memiliki kategori. Pilih kategori agar bisa dinilai.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Roles Card — hanya muncul di edit mode dan staff punya user_id */}
+        {mode === "edit" && initialData?.userId && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle>Hak Akses (Role)</CardTitle>
+                  <CardDescription>
+                    Satu staff bisa memiliki lebih dari satu role. Role menentukan halaman yang bisa diakses.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {AVAILABLE_ROLES.map(role => {
+                  const checked = selectedRoles.includes(role.value)
+                  return (
+                    <label
+                      key={role.value}
+                      htmlFor={`role-${role.value}`}
+                      className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                        checked
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <input
+                        id={`role-${role.value}`}
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleRole(role.value)}
+                        className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <div>
+                        <p className={`text-sm font-medium ${checked ? "text-primary" : "text-foreground"}`}>
+                          {role.label}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{role.description}</p>
+                      </div>
+                    </label>
+                  )
+                })}
+                {selectedRoles.length === 0 && (
+                  <p className="text-xs text-warning mt-1">
+                    ⚠ User tanpa role akan diarahkan ke halaman "Akun Belum Terdaftar".
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Submit Buttons */}
         <div className="flex gap-4 justify-end">
           <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
@@ -281,11 +432,7 @@ export function StaffForm({ mode, initialData }: StaffFormProps) {
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             <Save className="h-4 w-4 mr-2" />
-            {isSubmitting
-              ? "Menyimpan..."
-              : mode === "add"
-              ? "Simpan Staff"
-              : "Update Password"}
+            {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
           </Button>
         </div>
       </div>

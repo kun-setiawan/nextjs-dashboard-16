@@ -47,7 +47,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           id: data.user.id,
           name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
           email: data.user.email,
-          role: userRoles ? userRoles[0].role : 'member',
+          role: userRoles.length > 0 ? userRoles[0].role : 'member',
         };
       },
     }),

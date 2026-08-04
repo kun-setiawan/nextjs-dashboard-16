@@ -104,8 +104,8 @@ export async function fetchStaff() {
 
 export async function fetchStaffById(idStaff: string): Promise<{
   id_staff: string;
-  id_kategori_staff: string;
-  nama_kategori: string;
+  id_kategori_staff: string | null;
+  nama_kategori: string | null;
   user_id: string | null;
   nama_staff: string;
   foto_profil: string;
@@ -113,8 +113,8 @@ export async function fetchStaffById(idStaff: string): Promise<{
   try {
     const rows = await sql<{
       id_staff: string;
-      id_kategori_staff: string;
-      nama_kategori: string;
+      id_kategori_staff: string | null;
+      nama_kategori: string | null;
       user_id: string | null;
       nama_staff: string;
       foto_profil: string;
@@ -127,7 +127,7 @@ export async function fetchStaffById(idStaff: string): Promise<{
         s.nama_staff,
         s.foto_profil
       FROM staff s
-      JOIN kategori_staff k ON s.id_kategori_staff = k.id_kategori_staff
+      LEFT JOIN kategori_staff k ON s.id_kategori_staff = k.id_kategori_staff
       WHERE s.id_staff = ${idStaff}
       LIMIT 1
     `;
@@ -379,6 +379,74 @@ export async function updateStaffFotoProfil(idStaff: string, fotoProfil: string)
     throw new Error('Failed to update staff photo.');
   }
 }
+
+export async function updateStaffKategori(
+  idStaff: string,
+  idKategoriStaff: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await sql`
+      UPDATE staff
+      SET id_kategori_staff = ${idKategoriStaff}
+      WHERE id_staff = ${idStaff}
+    `;
+    revalidatePath('/dashboard/staff');
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error updateStaffKategori:', err);
+    return { success: false, error: 'Gagal memperbarui kategori staff.' };
+  }
+}
+
+/**
+ * Mengganti semua role user di tabel users_role.
+ * Menghapus semua role lama lalu insert role baru.
+ * @param userId - UUID dari auth.users
+ * @param roles  - array role baru (subset dari ['admin', 'member'])
+ */
+export async function updateUserRoles(
+  userId: string,
+  roles: string[]
+): Promise<{ success: boolean; error?: string }> {
+  // Validasi: hanya boleh 'admin' atau 'member'
+  const validRoles = ['admin', 'member'];
+  const sanitized = roles.filter(r => validRoles.includes(r));
+
+  try {
+    await sql.begin(async (sql) => {
+      // Hapus semua role lama
+      await sql`DELETE FROM users_role WHERE user_id = ${userId}`;
+
+      // Insert role baru (bisa lebih dari satu)
+      for (const role of sanitized) {
+        await sql`INSERT INTO users_role (user_id, role) VALUES (${userId}, ${role})`;
+      }
+    });
+    revalidatePath('/dashboard/staff');
+    return { success: true };
+  } catch (err) {
+    console.error('Database Error updateUserRoles:', err);
+    return { success: false, error: 'Gagal memperbarui role pengguna.' };
+  }
+}
+
+/**
+ * Mengambil semua role milik user berdasarkan user_id.
+ */
+export async function fetchUserRolesByUserId(
+  userId: string
+): Promise<string[]> {
+  try {
+    const rows = await sql<{ role: string }[]>`
+      SELECT role FROM users_role WHERE user_id = ${userId}
+    `;
+    return rows.map(r => r.role);
+  } catch (err) {
+    console.error('Database Error fetchUserRolesByUserId:', err);
+    return [];
+  }
+}
+
 
 export interface Personnel {
   id: string

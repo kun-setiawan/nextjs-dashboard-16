@@ -15,14 +15,33 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const userRole = auth?.user?.role;
       const isOnLoginPage = nextUrl.pathname.startsWith('/login');
+      const isOnRegisterPage = nextUrl.pathname.startsWith('/register');
       const isOnRoot = nextUrl.pathname === '/';
       const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
+      const isOnUnassign = nextUrl.pathname.startsWith('/unassign');
+
+      // /register: dapat diakses tanpa login; user yang sudah login diarahkan sesuai role
+      if (isOnRegisterPage) {
+        if (isLoggedIn) {
+          if (userRole === 'admin') {
+            return Response.redirect(new URL('/dashboard', nextUrl));
+          }
+          if (userRole === 'member') {
+            return Response.redirect(new URL('/unassign', nextUrl));
+          }
+          return Response.redirect(new URL('/mobile/penilaian', nextUrl));
+        }
+        return true;
+      }
 
       if (isOnLoginPage) {
         // Already logged in — redirect to correct page based on role
         if (isLoggedIn) {
           if (userRole === 'admin') {
             return Response.redirect(new URL('/dashboard', nextUrl));
+          }
+          if (userRole === 'member') {
+            return Response.redirect(new URL('/unassign', nextUrl));
           }
           return Response.redirect(new URL('/mobile/penilaian', nextUrl));
         }
@@ -31,6 +50,16 @@ export const authConfig = {
 
       // Not logged in — redirect to /login
       if (!isLoggedIn) return false;
+
+      // /unassign: hanya bisa diakses user yang sudah login
+      if (isOnUnassign) {
+        return true;
+      }
+
+      // User dengan role 'member' (belum diassign) hanya boleh ke /unassign
+      if (userRole === 'member' && !isOnUnassign) {
+        return Response.redirect(new URL('/unassign', nextUrl));
+      }
 
       // Handle role-based redirects for root URL
       if (isOnRoot) {
@@ -71,3 +100,4 @@ export const authConfig = {
   },
   providers: [], // Populated in auth.ts
 } satisfies NextAuthConfig;
+
