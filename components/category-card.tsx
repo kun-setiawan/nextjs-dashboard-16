@@ -73,7 +73,7 @@ function getScoreColor(score: number) {
 }
 
 export function CategoryCard({ kategori_staff, onSelect }: CategoryCardProps) {
-  const Icon = iconMap[kategori_staff.icon as keyof typeof iconMap]
+  const Icon = iconMap[kategori_staff.icon as keyof typeof iconMap] ?? Briefcase
 
   return (
     <Card
