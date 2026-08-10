@@ -39,12 +39,8 @@ export function SidebarNav() {
     const initialState: Record<string, boolean> = {}
     navItems.forEach((item) => {
       if (item.children) {
-        const isChildActive = item.children.some(
-          (child) => pathname === child.href || (child.href !== "/" && pathname.startsWith(child.href!))
-        )
-        if (isChildActive) {
-          initialState[item.label] = true
-        }
+        // Expand by default
+        initialState[item.label] = true
       }
     })
     return initialState

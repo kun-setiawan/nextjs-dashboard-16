@@ -57,5 +57,6 @@ export type AspekPenilaian = {
   unit_waktu: string;
   tipe: string;
   indeks: number;
+  kategori_staffs?: { id_kategori_staff: string; nama_kategori: string }[];
 };
 

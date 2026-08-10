@@ -1106,6 +1106,48 @@ export async function fetchAspekPenilaian(): Promise<AspekPenilaian[]> {
   }
 }
 
+export async function fetchAspekPenilaianById(id: string): Promise<AspekPenilaian | null> {
+  try {
+    const rows = await sql<AspekPenilaian[]>`
+      SELECT
+        id_aspek_penilaian,
+        nama_aspek,
+        indikator,
+        penanggung_jawab,
+        COALESCE(jumlah_kegiatan, 1) AS jumlah_kegiatan,
+        COALESCE(unit_waktu, 'Bulan') AS unit_waktu,
+        COALESCE(tipe, 'Foto') AS tipe,
+        indeks
+      FROM aspek_penilaian
+      WHERE id_aspek_penilaian = ${id}
+      LIMIT 1
+    `;
+    return rows[0] ?? null;
+  } catch (err) {
+    console.error('Database Error fetchAspekPenilaianById:', err);
+    throw new Error('Failed to fetch aspek penilaian.');
+  }
+}
+
+export async function fetchKategoriStaffByAspek(
+  id_aspek_penilaian: string
+): Promise<{ id_kategori_staff: string; nama_kategori: string }[]> {
+  try {
+    const rows = await sql<{ id_kategori_staff: string; nama_kategori: string }[]>`
+      SELECT k.id_kategori_staff, k.nama_kategori
+      FROM kategori_staff k
+      JOIN aspek_penilaian_kategori_staff ak
+        ON k.id_kategori_staff = ak.id_kategori_staff
+      WHERE ak.id_aspek_penilaian = ${id_aspek_penilaian}
+      ORDER BY k.nama_kategori ASC
+    `;
+    return rows;
+  } catch (err) {
+    console.error('Database Error fetchKategoriStaffByAspek:', err);
+    throw new Error('Failed to fetch kategori staff for aspek.');
+  }
+}
+
 export async function updateAspekPenilaian(
   id: string,
   data: {
@@ -1113,9 +1155,11 @@ export async function updateAspekPenilaian(
     indikator: string;
     jumlah_kegiatan: number;
     unit_waktu: string;
+    id_kategori_staffs: string[];
   }
 ): Promise<{ success: boolean }> {
   try {
+    // Update aspek penilaian fields
     await sql`
       UPDATE aspek_penilaian
       SET
@@ -1125,7 +1169,25 @@ export async function updateAspekPenilaian(
         unit_waktu       = ${data.unit_waktu}
       WHERE id_aspek_penilaian = ${id}
     `;
+
+    // Sync many-to-many: delete existing, then insert selected
+    await sql`
+      DELETE FROM aspek_penilaian_kategori_staff
+      WHERE id_aspek_penilaian = ${id}
+    `;
+
+    if (data.id_kategori_staffs.length > 0) {
+      for (const idKategori of data.id_kategori_staffs) {
+        await sql`
+          INSERT INTO aspek_penilaian_kategori_staff (id_aspek_penilaian, id_kategori_staff)
+          VALUES (${id}, ${idKategori})
+          ON CONFLICT DO NOTHING
+        `;
+      }
+    }
+
     revalidatePath('/dashboard/aspek');
+    revalidatePath('/dashboard/aspek/' + id + '/edit');
     return { success: true };
   } catch (err) {
     console.error('Database Error updateAspekPenilaian:', err);
