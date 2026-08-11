@@ -7,8 +7,11 @@ const accessKeyId = process.env.KILAT_S3_ACCESS_KEY!;
 const secretAccessKey = process.env.KILAT_S3_SECRET_KEY!;
 const region = process.env.KILAT_S3_REGION || 'us-east-1';
 
-export const BUCKET_EVIDENCE = process.env.KILAT_S3_BUCKET_EVIDENCE || 'evidence';
-export const BUCKET_PROFILE = process.env.KILAT_S3_BUCKET_PROFILE || 'profile-photos';
+export const BUCKET = process.env.KILAT_S3_BUCKET || 'sdaug';
+
+// Folder prefix di dalam bucket untuk masing-masing jenis file
+export const FOLDER_EVIDENCE = 'bukti_penilaian';
+export const FOLDER_PROFILE  = 'foto_profil';
 
 // ─── S3 Client Instance ───────────────────────────────────────────────────────
 export const s3Client = new S3Client({

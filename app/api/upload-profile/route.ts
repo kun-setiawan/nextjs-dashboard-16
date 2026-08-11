@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadToS3, getPublicUrl, BUCKET_PROFILE } from '@/lib/s3';
+import { uploadToS3, getPublicUrl, BUCKET, FOLDER_PROFILE } from '@/lib/s3';
 
 
 export async function POST(request: NextRequest) {
@@ -40,10 +40,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build file path: profile-photos/{staffId}/{timestamp}_{filename}
+    // Build file path: foto_profil/{staffId}/{timestamp}_profile.{ext}
     const timestamp = Date.now();
     const ext = file.name.split('.').pop() || 'jpg';
-    const filePath = `${staffId}/${timestamp}_profile.${ext}`;
+    const filePath = `${FOLDER_PROFILE}/${staffId}/${timestamp}_profile.${ext}`;
 
     // Convert to buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Upload ke Kilat Storage (S3-compatible)
     try {
-      await uploadToS3(BUCKET_PROFILE, filePath, buffer, file.type);
+      await uploadToS3(BUCKET, filePath, buffer, file.type);
     } catch (uploadErr: unknown) {
       const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
       console.error('Kilat S3 upload-profile error:', uploadErr);
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate public URL dari Kilat Storage
-    const publicUrl = getPublicUrl(BUCKET_PROFILE, filePath);
+    const publicUrl = getPublicUrl(BUCKET, filePath);
 
     return NextResponse.json({
       url: publicUrl,

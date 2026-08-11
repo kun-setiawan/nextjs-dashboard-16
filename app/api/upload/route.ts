@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { hitungNilaiPeriodeSpesifik } from "@/lib/action";
-import { uploadToS3, getPublicUrl, BUCKET_EVIDENCE } from '@/lib/s3';
+import { uploadToS3, getPublicUrl, BUCKET, FOLDER_EVIDENCE } from '@/lib/s3';
 
 // Supabase Admin hanya digunakan untuk operasi DATABASE (bukan storage).
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         // Ekstrak key (path) dari URL Kilat S3:
         // Format URL: {endpoint}/{bucket}/{key}
         // Ambil segmen setelah nama bucket
-        const bucketSegment = `/${BUCKET_EVIDENCE}/`;
+        const bucketSegment = `/${BUCKET}/`;
         const storagePath = fileUrl.includes(bucketSegment)
           ? fileUrl.split(bucketSegment).slice(1).join(bucketSegment)
           : null;
@@ -141,7 +141,8 @@ export async function POST(request: NextRequest) {
     } else {
       const timestamp = Date.now();
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      filePath = `${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
+      // Format: bukti_penilaian/{staffId}/{aspekId}/{timestamp}_{filename}
+      filePath = `${FOLDER_EVIDENCE}/${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
     }
 
     // Convert File to ArrayBuffer for upload
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Upload ke Kilat Storage (S3-compatible)
     try {
-      await uploadToS3(BUCKET_EVIDENCE, filePath, buffer, file.type);
+      await uploadToS3(BUCKET, filePath, buffer, file.type);
     } catch (uploadErr: unknown) {
       const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
       console.error('Kilat S3 upload error:', uploadErr);
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate public URL dari Kilat Storage
-    const publicUrl = getPublicUrl(BUCKET_EVIDENCE, filePath);
+    const publicUrl = getPublicUrl(BUCKET, filePath);
 
     const isImage = allowedImageTypes.includes(file.type);
     const tipeBukti = isImage ? 'image' : 'excel';

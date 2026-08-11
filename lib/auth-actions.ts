@@ -4,7 +4,7 @@ import { signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import postgres from 'postgres';
-import { uploadToS3, getPublicUrl, BUCKET_PROFILE } from '@/lib/s3';
+import { uploadToS3, getPublicUrl, BUCKET, FOLDER_PROFILE } from '@/lib/s3';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require', prepare: false });
 
@@ -131,11 +131,12 @@ export async function registerUser(
   if (fotoProfil && fotoProfil.size > 0) {
     try {
       const fileExt = fotoProfil.name.split('.').pop() ?? 'jpg';
-      const fileName = `${userId}/profil.${fileExt}`;
+      // Format: foto_profil/{userId}/profil.{ext}
+      const fileName = `${FOLDER_PROFILE}/${userId}/profil.${fileExt}`;
       const fileBuffer = Buffer.from(await fotoProfil.arrayBuffer());
 
-      await uploadToS3(BUCKET_PROFILE, fileName, fileBuffer, fotoProfil.type);
-      fotoUrl = getPublicUrl(BUCKET_PROFILE, fileName);
+      await uploadToS3(BUCKET, fileName, fileBuffer, fotoProfil.type);
+      fotoUrl = getPublicUrl(BUCKET, fileName);
     } catch {
       // Gagal upload foto tidak menghentikan proses registrasi
       fotoUrl = '';
