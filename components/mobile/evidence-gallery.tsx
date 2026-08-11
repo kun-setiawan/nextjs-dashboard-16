@@ -214,19 +214,27 @@ export function MobileEvidenceGallery({
         {/* Photo Gallery Grid */}
         {imageEvidences.length > 0 ? (
           <div className="grid grid-cols-3 gap-1">
-            {imageEvidences.map((evidence) => (
-              <button
-                key={evidence.id}
-                className="relative aspect-square overflow-hidden rounded-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                onClick={() => setPreviewEvidence(evidence)}
-              >
-                <img
-                  src={evidence.url}
-                  alt={evidence.name}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
-                />
-              </button>
-            ))}
+            {imageEvidences.map((evidence) => {
+              const { date, time } = formatDateTime(evidence.updated_at)
+              return (
+                <button
+                  key={evidence.id}
+                  className="relative aspect-square overflow-hidden rounded-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  onClick={() => setPreviewEvidence(evidence)}
+                >
+                  <img
+                    src={evidence.url}
+                    alt={evidence.name}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                  />
+                  {/* Timestamp overlay at bottom of thumbnail */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-1 flex flex-col gap-0">
+                    <span className="text-white text-[9px] font-medium leading-tight truncate">{date}</span>
+                    <span className="text-white/80 text-[9px] leading-tight">{time}</span>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         ) : (
           <Card className="bg-card border-border">
@@ -288,11 +296,26 @@ export function MobileEvidenceGallery({
                 />
               </div>
               {/* Caption */}
-              <div className="px-4 py-3 bg-black/90">
-                <p className="text-white text-sm font-medium">{previewEvidence.name}</p>
+              <div className="px-4 py-3 bg-black/90 space-y-1">
                 {previewEvidence.description && (
-                  <p className="text-white/70 text-xs mt-1">{previewEvidence.description}</p>
+                  <p className="text-white/70 text-xs">{previewEvidence.description}</p>
                 )}
+                {/* Timestamp */}
+                {(() => {
+                  const { date, time } = formatDateTime(previewEvidence.updated_at)
+                  return (
+                    <div className="flex items-center gap-3 pt-1">
+                      <div className="flex items-center gap-1">
+                        <CalendarDays className="h-3 w-3 text-white/50" />
+                        <span className="text-white/60 text-xs">{date}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-white/50" />
+                        <span className="text-white/60 text-xs">{time}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )}

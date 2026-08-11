@@ -581,6 +581,7 @@ export interface EvidenceWithMonth {
   id_aspek_penilaian: string
   bulan: number
   created_at?: string
+  updated_at?: string
   validitas?: boolean
 }
 
@@ -608,6 +609,7 @@ export async function fetchEvidencesByMonth(
         bp.id_aspek_penilaian,
         EXTRACT(MONTH FROM bp.created_at)::int AS bulan,
         bp.created_at::text            AS created_at,
+        bp.updated_at::text            AS updated_at,
         bp.validitas
       FROM bukti_penilaian bp
       JOIN periode p ON bp.id_periode = p.id_periode
