@@ -69,6 +69,47 @@ export async function POST(request: NextRequest) {
 
     // // ─── Resolve active periode BEFORE inserting bukti_penilaian ────────────
     let activePeriodeId: string | null = idPeriodeHint;
+
+    // ─── Overwrite-mode params (sent by client on duplicate-day scenario) ────
+    const forceOverwriteParam = formData.get('forceOverwrite') as string | null;
+    const forceOverwrite = forceOverwriteParam === 'true';
+    const existingBuktiIdParam = (formData.get('existingBuktiId') as string | null) || null;
+    const existingFilePathParam = (formData.get('existingFilePath') as string | null) || null;
+
+    // ─── Check for existing bukti today (per staff + per aspek) ──────────────
+    // Only runs when the client explicitly sends forceOverwrite: "false"
+    if (forceOverwriteParam === 'false') {
+      const now = new Date();
+      const wibNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+      const todayWIB = wibNow.toISOString().split('T')[0];
+      const todayStartISO = new Date(`${todayWIB}T00:00:00+07:00`).toISOString();
+      const todayEndISO = new Date(`${todayWIB}T23:59:59.999+07:00`).toISOString();
+
+      const { data: existingToday } = await supabaseAdmin
+        .from('bukti_penilaian')
+        .select('id_bukti_penilaian, file_bukti')
+        .eq('id_staff', idStaff!)
+        .eq('id_aspek_penilaian', idAspek!)
+        .gte('created_at', todayStartISO)
+        .lte('created_at', todayEndISO)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingToday) {
+        const fileUrl = existingToday.file_bukti as string;
+        const pathSegment = '/storage/v1/object/public/evidence/';
+        const storagePath = fileUrl.includes(pathSegment)
+          ? fileUrl.split(pathSegment)[1]
+          : null;
+        return NextResponse.json({
+          alreadyExists: true,
+          existingBuktiId: existingToday.id_bukti_penilaian as string,
+          existingFilePath: storagePath,
+        });
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
     // let jumlahHariKerja: number = 0;
     //
     // {
@@ -89,21 +130,27 @@ export async function POST(request: NextRequest) {
     // }
     // // ─────────────────────────────────────────────────────────────────────────
 
-    // Build a unique file path: evidence/{idStaff}/{idAspek}/{timestamp}_{filename}
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const filePath = `${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
+    // Build file path: reuse existing path when overwriting so the old file is replaced in Storage
+    let filePath: string;
+    if (forceOverwrite && existingFilePathParam) {
+      filePath = existingFilePathParam;
+    } else {
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      filePath = `${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
+    }
 
     // Convert File to ArrayBuffer for upload
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
     // Upload to Supabase Storage
+    // When overwriting, use upsert: true so the existing file is replaced in-place
     const { data, error } = await supabaseAdmin.storage
       .from(BUCKET_NAME)
       .upload(filePath, buffer, {
         contentType: file.type,
-        upsert: false,
+        upsert: forceOverwrite,
       });
 
     if (error) {
@@ -126,33 +173,58 @@ export async function POST(request: NextRequest) {
     const namaBukti = (formData.get('namaBukti') as string) || file.name;
     const keterangan = (formData.get('keterangan') as string) || '';
 
-    // Write a record to the bukti_penilaian table with correct column names
-    const { data: dbData, error: dbError } = await supabaseAdmin
-      .from('bukti_penilaian')
-      .insert({
-        id_staff:           idStaff,
-        id_aspek_penilaian: idAspek,
-        id_periode:         activePeriodeId,
-        file_bukti:         urlData.publicUrl,   // store public URL, same as foto_profil
-        nama_bukti:         namaBukti,
-        keterangan:         keterangan,
-        tipe_bukti:         tipeBukti,
-        validitas:          true,
-        created_by:         createdBy,
-      })
-      .select('id_bukti_penilaian')
-      .single();
+    let finalBuktiId: string;
 
-    if (dbError) {
-      console.error('Supabase DB insert error:', dbError);
-      return NextResponse.json(
-        { error: `File berhasil diupload tapi gagal menyimpan ke database: ${dbError.message}` },
-        { status: 500 },
-      );
+    if (forceOverwrite && existingBuktiIdParam) {
+      // ── UPDATE existing record (overwrite mode) ────────────────────────────
+      const { error: dbError } = await supabaseAdmin
+        .from('bukti_penilaian')
+        .update({
+          file_bukti:  urlData.publicUrl,
+          nama_bukti:  namaBukti,
+          keterangan:  keterangan,
+          tipe_bukti:  tipeBukti,
+        })
+        .eq('id_bukti_penilaian', existingBuktiIdParam);
+
+      if (dbError) {
+        console.error('Supabase DB update error:', dbError);
+        return NextResponse.json(
+          { error: `File berhasil diupload tapi gagal memperbarui database: ${dbError.message}` },
+          { status: 500 },
+        );
+      }
+      finalBuktiId = existingBuktiIdParam;
+    } else {
+      // ── INSERT new record ──────────────────────────────────────────────────
+      const { data: dbData, error: dbError } = await supabaseAdmin
+        .from('bukti_penilaian')
+        .insert({
+          id_staff:           idStaff,
+          id_aspek_penilaian: idAspek,
+          id_periode:         activePeriodeId,
+          file_bukti:         urlData.publicUrl,
+          nama_bukti:         namaBukti,
+          keterangan:         keterangan,
+          tipe_bukti:         tipeBukti,
+          validitas:          true,
+          created_by:         createdBy,
+        })
+        .select('id_bukti_penilaian')
+        .single();
+
+      if (dbError) {
+        console.error('Supabase DB insert error:', dbError);
+        return NextResponse.json(
+          { error: `File berhasil diupload tapi gagal menyimpan ke database: ${dbError.message}` },
+          { status: 500 },
+        );
+      }
+      finalBuktiId = dbData.id_bukti_penilaian;
     }
 
     if (activePeriodeId) {
-      await hitungNilaiPeriodeSpesifik(activePeriodeId, idAspek, idStaff)
+      await hitungNilaiPeriodeSpesifik(activePeriodeId, idAspek, idStaff);
     }
 
     // // ─── Update rekap_penilaian_aspek ───────────────────────────────────────
@@ -408,7 +480,7 @@ export async function POST(request: NextRequest) {
     // // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
-      id:       dbData.id_bukti_penilaian,
+      id:       finalBuktiId,
       url:      urlData.publicUrl,
       path:     data.path,
       type:     tipeBukti,

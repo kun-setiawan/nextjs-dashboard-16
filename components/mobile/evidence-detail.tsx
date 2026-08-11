@@ -26,6 +26,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -90,6 +100,17 @@ export function MobileEvidenceDetail({
     file: null as File | null,
   })
 
+  // ── Overwrite confirmation state (when bukti already exists today) ─────────
+  const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
+  const [existingBuktiId, setExistingBuktiId] = useState<string | null>(null)
+  const [existingFilePath, setExistingFilePath] = useState<string | null>(null)
+  const pendingFileRef = useRef<{
+    file: File
+    namaBukti: string
+    keterangan: string
+    periodeId?: string
+  } | null>(null)
+
   const resetForm = () => {
     setNewEvidence({ type: "image", name: "", description: "", file: null })
     setFilePreview(null)
@@ -151,9 +172,24 @@ export function MobileEvidenceDetail({
         formData.append("periodeId", periodeAktif.id_periode)
       }
 
+      formData.append("forceOverwrite", "false")
       const response = await fetch("/api/upload", { method: "POST", body: formData })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || "Gagal mengupload file")
+
+      // Bukti already exists today — show overwrite confirmation dialog
+      if (result.alreadyExists) {
+        pendingFileRef.current = {
+          file: fileToUpload,
+          namaBukti: newEvidence.name,
+          keterangan: newEvidence.description,
+          periodeId: periodeAktif?.id_periode,
+        }
+        setExistingBuktiId(result.existingBuktiId)
+        setExistingFilePath(result.existingFilePath)
+        setShowOverwriteDialog(true)
+        return
+      }
 
       resetForm()
       setShowAddForm(false)
@@ -171,7 +207,43 @@ export function MobileEvidenceDetail({
       setShowAddForm(false)
     }
   }
-  // ──────────────────────────────────────────────────────────────────────────
+
+  // ── Force overwrite: replace today's existing bukti ────────────────────────
+  const handleForceOverwrite = async () => {
+    if (!pendingFileRef.current || !existingBuktiId || !existingFilePath) return
+    setShowOverwriteDialog(false)
+    setIsUploading(true)
+    try {
+      const overwriteFormData = new FormData()
+      overwriteFormData.append("file", pendingFileRef.current.file)
+      overwriteFormData.append("personnelId", staff.id_staff)
+      overwriteFormData.append("aspectId", aspect.id)
+      overwriteFormData.append("namaBukti", pendingFileRef.current.namaBukti)
+      overwriteFormData.append("keterangan", pendingFileRef.current.keterangan)
+      if (pendingFileRef.current.periodeId) {
+        overwriteFormData.append("periodeId", pendingFileRef.current.periodeId)
+      }
+      overwriteFormData.append("forceOverwrite", "true")
+      overwriteFormData.append("existingBuktiId", existingBuktiId)
+      overwriteFormData.append("existingFilePath", existingFilePath)
+
+      const response = await fetch("/api/upload", { method: "POST", body: overwriteFormData })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "Gagal menimpa bukti")
+
+      resetForm()
+      setShowAddForm(false)
+      setExistingBuktiId(null)
+      setExistingFilePath(null)
+      pendingFileRef.current = null
+      toast.success("Bukti penilaian berhasil ditimpa!")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menimpa bukti.")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-background">
@@ -442,6 +514,33 @@ export function MobileEvidenceDetail({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Overwrite Confirmation Dialog */}
+      <AlertDialog open={showOverwriteDialog} onOpenChange={setShowOverwriteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bukti Sudah Diupload Hari Ini</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anda sudah menambahkan bukti untuk aspek ini hari ini. Apakah Anda ingin menambahkan bukti ulang?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowOverwriteDialog(false)
+                setExistingBuktiId(null)
+                setExistingFilePath(null)
+                pendingFileRef.current = null
+              }}
+            >
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleForceOverwrite}>
+              Ya, Tambahkan Ulang
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
