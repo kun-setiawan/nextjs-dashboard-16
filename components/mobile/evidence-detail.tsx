@@ -172,6 +172,7 @@ export function MobileEvidenceDetail({
         formData.append("periodeId", periodeAktif.id_periode)
       }
 
+      formData.append("aspectTipe", aspect.tipe)
       formData.append("forceOverwrite", "false")
       const response = await fetch("/api/upload", { method: "POST", body: formData })
       const result = await response.json()

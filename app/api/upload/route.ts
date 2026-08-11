@@ -78,7 +78,9 @@ export async function POST(request: NextRequest) {
 
     // ─── Check for existing bukti today (per staff + per aspek) ──────────────
     // Only runs when the client explicitly sends forceOverwrite: "false"
-    if (forceOverwriteParam === 'false') {
+    // Skipped for "Banyak Foto" type — those aspects allow multiple uploads per day
+    const aspectTipe = (formData.get('aspectTipe') as string | null) || null;
+    if (forceOverwriteParam === 'false' && aspectTipe !== 'Banyak Foto') {
       const now = new Date();
       const wibNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
       const todayWIB = wibNow.toISOString().split('T')[0];

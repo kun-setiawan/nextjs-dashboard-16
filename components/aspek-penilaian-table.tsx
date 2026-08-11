@@ -27,6 +27,14 @@ function tipeBadge(tipe: string) {
       </Badge>
     )
   }
+  if (tipe === "Banyak Foto") {
+    return (
+      <Badge variant="outline" className="border-teal-500/40 text-teal-600 bg-teal-500/5 gap-1">
+        <Camera className="h-3 w-3" />
+        Banyak Foto
+      </Badge>
+    )
+  }
   return (
     <Badge variant="outline" className="border-blue-500/40 text-blue-600 bg-blue-500/5 gap-1">
       <Camera className="h-3 w-3" />
