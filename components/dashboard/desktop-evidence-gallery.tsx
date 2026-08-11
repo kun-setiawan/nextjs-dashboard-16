@@ -167,9 +167,7 @@ export function DesktopEvidenceGallery({
                 </TableHeader>
                 <TableBody>
                   {evidences.map((evidence, idx) => {
-                    const { date, time } = formatDateTime(
-                      (evidence as EvidenceWithMonth & { created_at?: string }).created_at
-                    )
+                    const { date, time } = formatDateTime(evidence.updated_at)
                     const isValid = validitasMap[evidence.id] ?? false
                     return (
                       <TableRow
@@ -339,11 +337,22 @@ export function DesktopEvidenceGallery({
                       className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                   </div>
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2 pointer-events-none">
-                    <p className="text-white text-xs font-medium truncate drop-shadow-md">
-                      {evidence.name}
-                    </p>
-                  </div>
+                  {/* Timestamp overlay at bottom of thumbnail */}
+                  {(() => {
+                    const { date, time } = formatDateTime(evidence.updated_at)
+                    return (
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2 pointer-events-none">
+                        <div className="flex items-center gap-1.5">
+                          <CalendarDays className="h-3 w-3 text-white/70 flex-shrink-0" />
+                          <span className="text-white text-[10px] font-medium truncate drop-shadow-md">{date}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 ml-0">
+                          <Clock className="h-3 w-3 text-white/60 flex-shrink-0" />
+                          <span className="text-white/80 text-[10px] truncate drop-shadow-md">{time}</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -469,11 +478,26 @@ export function DesktopEvidenceGallery({
                 alt={previewEvidence.name}
                 className="max-w-full max-h-[85vh] object-contain rounded-md"
               />
+              {/* Caption: deskripsi + updated_at timestamp */}
               <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                <p className="text-white font-medium">{previewEvidence.name}</p>
                 {previewEvidence.description && (
-                  <p className="text-white/80 text-sm mt-1">{previewEvidence.description}</p>
+                  <p className="text-white/80 text-sm">{previewEvidence.description}</p>
                 )}
+                {(() => {
+                  const { date, time } = formatDateTime(previewEvidence.updated_at)
+                  return (
+                    <div className="flex items-center gap-4 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <CalendarDays className="h-3.5 w-3.5 text-white/50" />
+                        <span className="text-white/60 text-xs">{date}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-white/50" />
+                        <span className="text-white/60 text-xs">{time}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )}
