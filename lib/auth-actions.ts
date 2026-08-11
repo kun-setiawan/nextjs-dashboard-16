@@ -4,6 +4,7 @@ import { signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import postgres from 'postgres';
+import { uploadToS3, getPublicUrl, BUCKET_PROFILE } from '@/lib/s3';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require', prepare: false });
 
@@ -126,26 +127,15 @@ export async function registerUser(
   const userId = authData.user.id;
   let fotoUrl = '';
 
-  // 2. Upload foto profil ke Supabase Storage (opsional)
+  // 2. Upload foto profil ke Kilat Storage (opsional)
   if (fotoProfil && fotoProfil.size > 0) {
     try {
       const fileExt = fotoProfil.name.split('.').pop() ?? 'jpg';
       const fileName = `${userId}/profil.${fileExt}`;
       const fileBuffer = Buffer.from(await fotoProfil.arrayBuffer());
 
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from('foto-profil')
-        .upload(fileName, fileBuffer, {
-          contentType: fotoProfil.type,
-          upsert: true,
-        });
-
-      if (!uploadError) {
-        const { data: urlData } = supabaseAdmin.storage
-          .from('foto-profil')
-          .getPublicUrl(fileName);
-        fotoUrl = urlData.publicUrl;
-      }
+      await uploadToS3(BUCKET_PROFILE, fileName, fileBuffer, fotoProfil.type);
+      fotoUrl = getPublicUrl(BUCKET_PROFILE, fileName);
     } catch {
       // Gagal upload foto tidak menghentikan proses registrasi
       fotoUrl = '';

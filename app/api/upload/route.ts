@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { hitungNilaiPeriodeSpesifik } from "@/lib/action";
+import { uploadToS3, getPublicUrl, BUCKET_EVIDENCE } from '@/lib/s3';
 
-// Use the service role key on the server so uploads bypass RLS policies.
+// Supabase Admin hanya digunakan untuk operasi DATABASE (bukan storage).
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-const BUCKET_NAME = 'evidence';
 
 export async function POST(request: NextRequest) {
   try {
@@ -100,9 +99,12 @@ export async function POST(request: NextRequest) {
 
       if (existingToday) {
         const fileUrl = existingToday.file_bukti as string;
-        const pathSegment = '/storage/v1/object/public/evidence/';
-        const storagePath = fileUrl.includes(pathSegment)
-          ? fileUrl.split(pathSegment)[1]
+        // Ekstrak key (path) dari URL Kilat S3:
+        // Format URL: {endpoint}/{bucket}/{key}
+        // Ambil segmen setelah nama bucket
+        const bucketSegment = `/${BUCKET_EVIDENCE}/`;
+        const storagePath = fileUrl.includes(bucketSegment)
+          ? fileUrl.split(bucketSegment).slice(1).join(bucketSegment)
           : null;
         return NextResponse.json({
           alreadyExists: true,
@@ -146,27 +148,20 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
-    // Upload to Supabase Storage
-    // When overwriting, use upsert: true so the existing file is replaced in-place
-    const { data, error } = await supabaseAdmin.storage
-      .from(BUCKET_NAME)
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: forceOverwrite,
-      });
-
-    if (error) {
-      console.error('Supabase Storage upload error:', error);
+    // Upload ke Kilat Storage (S3-compatible)
+    try {
+      await uploadToS3(BUCKET_EVIDENCE, filePath, buffer, file.type);
+    } catch (uploadErr: unknown) {
+      const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+      console.error('Kilat S3 upload error:', uploadErr);
       return NextResponse.json(
-        { error: `Gagal mengupload file: ${error.message}` },
+        { error: `Gagal mengupload file: ${msg}` },
         { status: 500 },
       );
     }
 
-    // Get the public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(data.path);
+    // Generate public URL dari Kilat Storage
+    const publicUrl = getPublicUrl(BUCKET_EVIDENCE, filePath);
 
     const isImage = allowedImageTypes.includes(file.type);
     const tipeBukti = isImage ? 'image' : 'excel';
@@ -182,7 +177,7 @@ export async function POST(request: NextRequest) {
       const { error: dbError } = await supabaseAdmin
         .from('bukti_penilaian')
         .update({
-          file_bukti:  urlData.publicUrl,
+          file_bukti:  publicUrl,
           nama_bukti:  namaBukti,
           keterangan:  keterangan,
           tipe_bukti:  tipeBukti,
@@ -205,7 +200,7 @@ export async function POST(request: NextRequest) {
           id_staff:           idStaff,
           id_aspek_penilaian: idAspek,
           id_periode:         activePeriodeId,
-          file_bukti:         urlData.publicUrl,
+          file_bukti:         publicUrl,
           nama_bukti:         namaBukti,
           keterangan:         keterangan,
           tipe_bukti:         tipeBukti,
@@ -483,8 +478,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       id:       finalBuktiId,
-      url:      urlData.publicUrl,
-      path:     data.path,
+      url:      publicUrl,
+      path:     filePath,
       type:     tipeBukti,
       fileName: file.name,
     });

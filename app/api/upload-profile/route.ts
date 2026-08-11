@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { uploadToS3, getPublicUrl, BUCKET_PROFILE } from '@/lib/s3';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-const BUCKET_NAME = 'profile-photos';
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,30 +49,24 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabaseAdmin.storage
-      .from(BUCKET_NAME)
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true,
-      });
-
-    if (error) {
-      console.error('Supabase Storage upload error:', error);
+    // Upload ke Kilat Storage (S3-compatible)
+    try {
+      await uploadToS3(BUCKET_PROFILE, filePath, buffer, file.type);
+    } catch (uploadErr: unknown) {
+      const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+      console.error('Kilat S3 upload-profile error:', uploadErr);
       return NextResponse.json(
-        { error: `Gagal mengupload foto: ${error.message}` },
+        { error: `Gagal mengupload foto: ${msg}` },
         { status: 500 },
       );
     }
 
-    // Get the public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(data.path);
+    // Generate public URL dari Kilat Storage
+    const publicUrl = getPublicUrl(BUCKET_PROFILE, filePath);
 
     return NextResponse.json({
-      url: urlData.publicUrl,
-      path: data.path,
+      url: publicUrl,
+      path: filePath,
     });
   } catch (err) {
     console.error('Upload profile API error:', err);
