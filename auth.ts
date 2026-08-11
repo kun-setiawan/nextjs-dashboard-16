@@ -41,12 +41,15 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         const userRoles = await fetchUserRole(data.user.id); // Fetch
 
         // 3. Return the user object for Auth.js session
-        return {
+        const result: { id: string; name: string; email: string | undefined; role?: string } = {
           id: data.user.id,
           name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
           email: data.user.email,
-          role: userRoles.length > 0 ? userRoles[0].role : 'member',
         };
+        if (userRoles.length > 0) {
+          result.role = userRoles[0].role;
+        }
+        return result;
       },
     }),
   ],

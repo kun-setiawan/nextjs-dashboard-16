@@ -19,17 +19,20 @@ export const authConfig = {
       const isOnRoot = nextUrl.pathname === '/';
       const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
       const isOnUnassign = nextUrl.pathname.startsWith('/unassign');
+      const isOnMobile = nextUrl.pathname.startsWith('/mobile');
 
       // /register: dapat diakses tanpa login; user yang sudah login diarahkan sesuai role
       if (isOnRegisterPage) {
         if (isLoggedIn) {
           if (userRole === 'admin') {
             return Response.redirect(new URL('/dashboard', nextUrl));
+          } else if (userRole === 'member') {
+            return Response.redirect(new URL('/mobile/penilaian', nextUrl));
           }
-          if (userRole === 'member') {
+          if (!userRole) {
             return Response.redirect(new URL('/unassign', nextUrl));
           }
-          return Response.redirect(new URL('/mobile/penilaian', nextUrl));
+          return Response.redirect(new URL('/unassign', nextUrl));
         }
         return true;
       }
@@ -39,11 +42,13 @@ export const authConfig = {
         if (isLoggedIn) {
           if (userRole === 'admin') {
             return Response.redirect(new URL('/dashboard', nextUrl));
+          } else if (userRole === 'member') {
+            return Response.redirect(new URL('/mobile/penilaian', nextUrl));
           }
-          if (userRole === 'member') {
+          if (!userRole) {
             return Response.redirect(new URL('/unassign', nextUrl));
           }
-          return Response.redirect(new URL('/mobile/penilaian', nextUrl));
+          return Response.redirect(new URL('/unassign', nextUrl));
         }
         return true;
       }
@@ -56,9 +61,14 @@ export const authConfig = {
         return true;
       }
 
-      // User dengan role 'member' (belum diassign) hanya boleh ke /unassign
-      if (userRole === 'member' && !isOnUnassign) {
+      // User tanpa record di users_role (role undefined) hanya boleh ke /unassign
+      if (!userRole && !isOnUnassign) {
         return Response.redirect(new URL('/unassign', nextUrl));
+      }
+
+      // User dengan role 'member' hanya boleh ke /mobile
+      if (userRole === 'member' && !isOnMobile && !isOnUnassign) {
+        return Response.redirect(new URL('/mobile/penilaian', nextUrl));
       }
 
       // Handle role-based redirects for root URL
