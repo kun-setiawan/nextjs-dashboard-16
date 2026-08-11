@@ -40,10 +40,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build file path: foto_profil/{staffId}/{timestamp}_profile.{ext}
-    const timestamp = Date.now();
-    const ext = file.name.split('.').pop() || 'jpg';
-    const filePath = `${FOLDER_PROFILE}/${staffId}/${timestamp}_profile.${ext}`;
+    // Gunakan key tetap berdasarkan staffId sehingga upload baru selalu menimpa foto lama.
+    // Ekstensi tidak diperlukan karena S3 menyimpan ContentType di metadata objek.
+    const filePath = `${FOLDER_PROFILE}/${staffId}/profil`;
 
     // Convert to buffer
     const arrayBuffer = await file.arrayBuffer();

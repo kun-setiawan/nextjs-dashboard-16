@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
     } else {
       const timestamp = Date.now();
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      // Format: bukti_penilaian/{staffId}/{aspekId}/{timestamp}_{filename}
-      filePath = `${FOLDER_EVIDENCE}/${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
+      // Format: bukti_penilaian/{idPeriode}/{idStaff}/{idAspek}/{timestamp}_{filename}
+      filePath = `${FOLDER_EVIDENCE}/${activePeriodeId ?? 'no-periode'}/${idStaff}/${idAspek}/${timestamp}_${sanitizedName}`;
     }
 
     // Convert File to ArrayBuffer for upload
@@ -172,9 +172,12 @@ export async function POST(request: NextRequest) {
     const keterangan = (formData.get('keterangan') as string) || '';
 
     let finalBuktiId: string;
+    // Timestamp yang konsisten untuk INSERT baru (agar created_at = updated_at)
+    const nowISO = new Date().toISOString();
 
     if (forceOverwrite && existingBuktiIdParam) {
       // ── UPDATE existing record (overwrite mode) ────────────────────────────
+      // Hanya updated_at yang diperbarui (created_at tetap dari insert pertama)
       const { error: dbError } = await supabaseAdmin
         .from('bukti_penilaian')
         .update({
@@ -182,6 +185,7 @@ export async function POST(request: NextRequest) {
           nama_bukti:  namaBukti,
           keterangan:  keterangan,
           tipe_bukti:  tipeBukti,
+          updated_at:  new Date().toISOString(),
         })
         .eq('id_bukti_penilaian', existingBuktiIdParam);
 
@@ -195,6 +199,7 @@ export async function POST(request: NextRequest) {
       finalBuktiId = existingBuktiIdParam;
     } else {
       // ── INSERT new record ──────────────────────────────────────────────────
+      // Set updated_at = created_at secara eksplisit agar nilainya sama pada insert pertama
       const { data: dbData, error: dbError } = await supabaseAdmin
         .from('bukti_penilaian')
         .insert({
@@ -207,6 +212,8 @@ export async function POST(request: NextRequest) {
           tipe_bukti:         tipeBukti,
           validitas:          true,
           created_by:         createdBy,
+          created_at:         nowISO,
+          updated_at:         nowISO,
         })
         .select('id_bukti_penilaian')
         .single();

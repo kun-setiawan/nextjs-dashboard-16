@@ -130,9 +130,9 @@ export async function registerUser(
   // 2. Upload foto profil ke Kilat Storage (opsional)
   if (fotoProfil && fotoProfil.size > 0) {
     try {
-      const fileExt = fotoProfil.name.split('.').pop() ?? 'jpg';
-      // Format: foto_profil/{userId}/profil.{ext}
-      const fileName = `${FOLDER_PROFILE}/${userId}/profil.${fileExt}`;
+      // Gunakan key tetap berdasarkan userId sehingga update foto selalu menimpa file lama.
+      // Format: foto_profil/{userId}/profil (tanpa ekstensi, ContentType disimpan di metadata S3)
+      const fileName = `${FOLDER_PROFILE}/${userId}/profil`;
       const fileBuffer = Buffer.from(await fotoProfil.arrayBuffer());
 
       await uploadToS3(BUCKET, fileName, fileBuffer, fotoProfil.type);
